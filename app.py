@@ -43,32 +43,41 @@ def zastosuj_motyw(ciemny: bool, paleta_nazwa: str):
     paleta = PALETY_KOLOROW.get(paleta_nazwa, PALETY_KOLOROW["Oceanic"])
     k1, k2 = paleta[0], paleta[1]
     if ciemny:
-        tlo, tlo_k, tekst, ramka, tlo_sb = "#0E1117", "#1E2130", "#FAFAFA", "#2D3250", "#161B22"
+        tlo, tlo_k, tekst, ramka, tlo_sb = "#0a0e17", "#111827", "#F1F5F9", "#1e293b", "#0f1520"
+        card_bg = "rgba(17,24,39,0.7)"
+        card_border = "rgba(255,255,255,0.06)"
+        glass = "backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);"
     else:
-        tlo, tlo_k, tekst, ramka, tlo_sb = "#FFFFFF", "#F8F9FA", "#1A1A2E", "#DEE2E6", "#F0F2F6"
+        tlo, tlo_k, tekst, ramka, tlo_sb = "#f8fafc", "#ffffff", "#0f172a", "#e2e8f0", "#f1f5f9"
+        card_bg = "rgba(255,255,255,0.8)"
+        card_border = "rgba(0,0,0,0.06)"
+        glass = "backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);"
 
     st.markdown(f"""<style>
-    .stApp {{ background-color: {tlo}; color: {tekst}; }}
-    section[data-testid="stSidebar"] {{ background-color: {tlo_sb}; }}
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+    * {{ font-family: 'Inter', -apple-system, sans-serif !important; }}
+    .stApp {{ background: {tlo}; color: {tekst}; }}
+    section[data-testid="stSidebar"] {{ background: {tlo_sb}; border-right: 1px solid {card_border}; }}
     .metric-card {{
-        background: linear-gradient(135deg, {k1}22, {k2}22);
-        border: 1px solid {ramka}; border-radius: 16px;
-        padding: 20px 24px; text-align: center;
-        transition: transform 0.2s, box-shadow 0.2s;
+        background: {card_bg}; {glass}
+        border: 1px solid {card_border}; border-radius: 16px;
+        padding: 18px 20px; text-align: center;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        transition: transform 0.25s cubic-bezier(.4,0,.2,1), box-shadow 0.25s;
     }}
-    .metric-card:hover {{ transform: translateY(-4px); box-shadow: 0 8px 25px {k1}33; }}
-    .metric-card .value {{ font-size: 2rem; font-weight: 700; color: {k1}; margin: 8px 0 4px; }}
-    .metric-card .label {{ font-size: 0.85rem; color: {tekst}AA; text-transform: uppercase; letter-spacing: 1px; }}
-    .delta-positive {{ color: #00C853; }} .delta-negative {{ color: #FF1744; }}
-    .app-title {{ text-align:center; font-size:1.8rem; font-weight:800;
-        background: linear-gradient(90deg, {k1}, {k2});
-        -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom:5px; }}
-    .app-subtitle {{ text-align:center; font-size:0.9rem; color:{tekst}88; margin-bottom:20px; }}
-    .section-header {{ font-size:1.2rem; font-weight:700; color:{k1};
-        border-bottom:2px solid {k1}44; padding-bottom:8px; margin:30px 0 15px; }}
-    .auth-container {{ max-width:400px; margin:60px auto; padding:40px;
-        background:{tlo_k}; border-radius:20px; border:1px solid {ramka}; }}
-    .logo-center {{ display:flex; justify-content:center; margin:10px 0 20px; }}
+    .metric-card:hover {{ transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,0,0,0.15); }}
+    .metric-card .value {{ font-size: 1.7rem; font-weight: 800; color: {k1}; margin: 6px 0 3px; letter-spacing: -0.02em; }}
+    .metric-card .label {{ font-size: 0.7rem; color: {tekst}99; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; }}
+    .metric-card .sub {{ font-size: 0.8rem; margin-top: 2px; }}
+    .delta-positive {{ color: #10b981; }} .delta-negative {{ color: #ef4444; }}
+    .app-title {{ text-align:center; font-size:2rem; font-weight:900; letter-spacing:-0.03em;
+        background: linear-gradient(135deg, {k1}, {k2});
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom:2px; }}
+    .app-subtitle {{ text-align:center; font-size:0.8rem; color:{tekst}66; margin-bottom:24px; font-weight:500; }}
+    .section-header {{ font-size:1.05rem; font-weight:700; color:{k1};
+        border-left:3px solid {k1}; padding-left:12px; margin:28px 0 12px; }}
+    .loss-badge {{ display:inline-block; background:rgba(239,68,68,0.12); color:#ef4444;
+        padding:3px 10px; border-radius:8px; font-size:0.75rem; font-weight:600; margin-top:4px; }}
     </style>""", unsafe_allow_html=True)
 
 # =============================================================================
@@ -473,7 +482,7 @@ def main():
     if portfel_df.empty:
         st.warning("⚠️ Brak aktywnych pozycji."); return
 
-    # --- METRIC CARDS ---
+    # --- METRIC CARDS (4 karty) ---
     lw = portfel_df["Wartość ($)"].sum()
     lk = (portfel_df["Śr. Cena Zakupu ($)"] * portfel_df["Ilość"]).sum()
     lz = lw - lk
@@ -481,22 +490,35 @@ def main():
     kz = "delta-positive" if lz >= 0 else "delta-negative"
     zn = "+" if lz >= 0 else ""
 
-    c1, c2, c3 = st.columns(3)
+    # Dzienny P&L — użyj zmienności
+    dzienny_pl = sum(portfel_df["Wartość ($)"] * portfel_df["Zmienność (%)"] / 100)
+    dzienny_pct = (dzienny_pl / lw * 100) if lw > 0 else 0
+    dz_kz = "delta-positive" if dzienny_pl >= 0 else "delta-negative"
+    dz_zn = "+" if dzienny_pl >= 0 else ""
+
+    # Najgorsza i najlepsza pozycja
+    najgorszy = portfel_df.loc[portfel_df["ROI (%)"].idxmin()]
+    najlepszy = portfel_df.loc[portfel_df["ROI (%)"].idxmax()]
+
+    c1, c2, c3, c4 = st.columns(4)
     with c1:
         st.markdown(f'<div class="metric-card"><div class="label">Wartość Portfela</div>'
             f'<div class="value">${lw:,.2f}</div>'
-            f'<div style="color:{paleta[2]}">Zainwestowano: ${lk:,.2f}</div></div>', unsafe_allow_html=True)
+            f'<div class="sub" style="color:{paleta[2]}">Zainwestowano: ${lk:,.2f}</div></div>', unsafe_allow_html=True)
     with c2:
         st.markdown(f'<div class="metric-card"><div class="label">Zysk / Strata</div>'
-            f'<div class="value {kz}">{zn}${lz:,.2f}</div>'
-            f'<div class="{kz}">{zn}{lr:.2f}%</div></div>', unsafe_allow_html=True)
+            f'<div class="value {kz}">{zn}${abs(lz):,.2f}</div>'
+            f'<div class="sub {kz}">{zn}{lr:.2f}%</div></div>', unsafe_allow_html=True)
     with c3:
-        najl = portfel_df.loc[portfel_df["ROI (%)"].idxmax()]
-        st.markdown(f'<div class="metric-card"><div class="label">Najlepsza Pozycja</div>'
-            f'<div class="value">{najl["Ticker"]}</div>'
-            f'<div class="delta-positive">ROI: {najl["ROI (%)"]:.2f}%</div></div>', unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-card"><div class="label">Zmiana Dzisiaj</div>'
+            f'<div class="value {dz_kz}">{dz_zn}${abs(dzienny_pl):,.2f}</div>'
+            f'<div class="sub {dz_kz}">{dz_zn}{dzienny_pct:.2f}%</div></div>', unsafe_allow_html=True)
+    with c4:
+        ng_roi = najgorszy["ROI (%)"]
+        ng_kz = "delta-negative" if ng_roi < 0 else "delta-positive"
+        st.markdown(f'<div class="metric-card"><div class="label">{"Największa Strata" if ng_roi < 0 else "Najlepsza Pozycja"}</div>'
+            f'<div class="value {ng_kz}">{najgorszy["Ticker"] if ng_roi < 0 else najlepszy["Ticker"]}</div>'
+            f'<div class="{"loss-badge" if ng_roi < 0 else "sub delta-positive"}">{"" if ng_roi < 0 else "+"}{(ng_roi if ng_roi < 0 else najlepszy["ROI (%)"]):.2f}%</div></div>', unsafe_allow_html=True)
 
     # --- TABELA ---
     st.markdown('<div class="section-header">📋 Podsumowanie</div>', unsafe_allow_html=True)
@@ -526,12 +548,20 @@ def main():
         fig_pie.update_layout(**layout_base, legend=dict(orientation="h", y=-0.2))
         st.plotly_chart(fig_pie, use_container_width=True)
     with ch2:
-        st.markdown('<div class="section-header">📊 Zysk/Strata</div>', unsafe_allow_html=True)
-        colors_bar = ["#00C853" if v >= 0 else "#FF1744" for v in portfel_df["Zysk/Strata ($)"]]
-        fig_bar = go.Figure(go.Bar(x=portfel_df["Ticker"], y=portfel_df["Zysk/Strata ($)"], marker_color=colors_bar))
-        fig_bar.update_layout(**layout_base, xaxis=dict(showgrid=False),
-            yaxis=dict(showgrid=True, gridcolor="rgba(128,128,128,0.2)", title="$"))
-        st.plotly_chart(fig_bar, use_container_width=True)
+        st.markdown('<div class="section-header">📉 Zysk/Strata</div>', unsafe_allow_html=True)
+        fig_pl = go.Figure()
+        sorted_df = portfel_df.sort_values("Zysk/Strata ($)")
+        colors_line = ["#10b981" if v >= 0 else "#ef4444" for v in sorted_df["Zysk/Strata ($)"]]
+        fig_pl.add_trace(go.Scatter(
+            x=sorted_df["Ticker"], y=sorted_df["Zysk/Strata ($)"],
+            mode="lines+markers", name="P&L",
+            line=dict(color=paleta[0], width=2.5),
+            marker=dict(color=colors_line, size=10, line=dict(width=2, color="white")),
+        ))
+        fig_pl.add_hline(y=0, line_dash="dash", line_color="rgba(128,128,128,0.4)", line_width=1)
+        fig_pl.update_layout(**{**layout_base, "height": 320},
+            xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor="rgba(128,128,128,0.1)", title="$"))
+        st.plotly_chart(fig_pl, use_container_width=True)
 
     # --- HISTORIA ---
     st.markdown('<div class="section-header">📈 Wartość w Czasie</div>', unsafe_allow_html=True)
@@ -586,15 +616,21 @@ def main():
 
     # --- ZMIENNOŚĆ ---
     st.markdown('<div class="section-header">📉 Zmienność Dzienna</div>', unsafe_allow_html=True)
-    colors_vol = ["#00C853" if v >= 0 else "#FF1744" for v in portfel_df["Zmienność (%)"]]
-    fig_vol = go.Figure(go.Bar(x=portfel_df["Ticker"], y=portfel_df["Zmienność (%)"], marker_color=colors_vol))
-    fig_vol.update_layout(**{**layout_base, "height": 300}, xaxis=dict(showgrid=False),
-        yaxis=dict(showgrid=True, gridcolor="rgba(128,128,128,0.2)", title="%"))
+    colors_vol = ["#10b981" if v >= 0 else "#ef4444" for v in portfel_df["Zmienność (%)"]]
+    fig_vol = go.Figure(go.Bar(
+        x=portfel_df["Ticker"], y=portfel_df["Zmienność (%)"],
+        marker_color=colors_vol, marker_line_width=0,
+        text=[f"{v:+.1f}%" for v in portfel_df["Zmienność (%)"]],
+        textposition="outside", textfont=dict(size=10)
+    ))
+    fig_vol.update_layout(**{**layout_base, "height": 160, "margin": dict(t=10, b=10, l=30, r=10)},
+        xaxis=dict(showgrid=False, tickfont=dict(size=10)),
+        yaxis=dict(showgrid=True, gridcolor="rgba(128,128,128,0.1)", title="", tickfont=dict(size=9)))
     st.plotly_chart(fig_vol, use_container_width=True)
 
     st.markdown("---")
-    st.markdown(f'<p style="text-align:center;color:#888;font-size:0.8rem;">'
-        f'beta1 Portfolio Tracker | Yahoo Finance | {datetime.now().strftime("%Y-%m-%d %H:%M")}</p>',
+    st.markdown(f'<p style="text-align:center;color:#64748b;font-size:0.75rem;font-weight:500;">'
+        f'beta1 Portfolio Tracker · Yahoo Finance · {datetime.now().strftime("%Y-%m-%d %H:%M")}</p>',
         unsafe_allow_html=True)
 
 if __name__ == "__main__":
