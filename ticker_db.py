@@ -9,16 +9,16 @@ TICKER_DATABASE = {
     # =========================================================================
     # 🪙 KRYPTOWALUTY (Top 10)
     # =========================================================================
-    "BTC-GBP — Bitcoin": "BTC-GBP",
-    "ETH-GBP — Ethereum": "ETH-GBP",
-    "BNB-GBP — Binance Coin": "BNB-GBP",
-    "XRP-GBP — Ripple": "XRP-GBP",
-    "ADA-GBP — Cardano": "ADA-GBP",
-    "SOL-GBP — Solana": "SOL-GBP",
-    "DOGE-GBP — Dogecoin": "DOGE-GBP",
-    "DOT-GBP — Polkadot": "DOT-GBP",
-    "AVAX-GBP — Avalanche": "AVAX-GBP",
-    "POL-GBP — Polygon (MATIC)": "POL-GBP",
+    "BTC-USD — Bitcoin": "BTC-USD",
+    "ETH-USD — Ethereum": "ETH-USD",
+    "BNB-USD — Binance Coin": "BNB-USD",
+    "XRP-USD — Ripple": "XRP-USD",
+    "ADA-USD — Cardano": "ADA-USD",
+    "SOL-USD — Solana": "SOL-USD",
+    "DOGE-USD — Dogecoin": "DOGE-USD",
+    "DOT-USD — Polkadot": "DOT-USD",
+    "AVAX-USD — Avalanche": "AVAX-USD",
+    "POL-USD — Polygon (MATIC)": "POL-USD",
 
     # =========================================================================
     # 🇺🇸 US STOCKS (Top ~60)

@@ -1,7 +1,7 @@
 # =============================================================================
 # BETA1 — Portfolio Tracker v2 (Cloud Edition)
 # Streamlit + Firebase Auth + Firestore + yfinance + Plotly
-# Waluta: GBP (£) | Rynki: US, GPW, UK, Krypto Top 10
+# Waluta: USD ($) | Rynki: US, GPW, UK, Krypto Top 10
 # =============================================================================
 
 import streamlit as st
@@ -160,8 +160,8 @@ def oblicz_portfel(transakcje: list) -> pd.DataFrame:
         zysk = wartosc - koszt
         roi = ((cena_akt - srednia_cena) / srednia_cena * 100) if srednia_cena > 0 else 0
         wyniki.append({"Ticker": ticker, "Nazwa": nazwa, "Ilość": round(ilosc_netto, 4),
-            "Śr. Cena Zakupu (£)": round(srednia_cena, 2), "Cena Bieżąca (£)": round(cena_akt, 2),
-            "Wartość (£)": round(wartosc, 2), "Zysk/Strata (£)": round(zysk, 2),
+            "Śr. Cena Zakupu ($)": round(srednia_cena, 2), "Cena Bieżąca ($)": round(cena_akt, 2),
+            "Wartość ($)": round(wartosc, 2), "Zysk/Strata ($)": round(zysk, 2),
             "ROI (%)": round(roi, 2), "Zmienność (%)": zmiennosc})
     return pd.DataFrame(wyniki) if wyniki else pd.DataFrame()
 
@@ -185,7 +185,7 @@ def oblicz_historie_portfela(transakcje: list) -> pd.DataFrame:
             trans = df[(df["ticker"] == ticker) & (df["data"] <= data_idx)]
             il = sum(float(r["ilosc"]) if r["typ"] == "Kupno" else -float(r["ilosc"]) for _, r in trans.iterrows())
             wartosc_dnia += max(il, 0) * df_hist.loc[data_idx, ticker]
-        wartosci.append({"Data": data_idx, "Wartość Portfela (£)": round(wartosc_dnia, 2)})
+        wartosci.append({"Data": data_idx, "Wartość Portfela ($)": round(wartosc_dnia, 2)})
     return pd.DataFrame(wartosci)
 
 def oblicz_roi_portfela(transakcje: list) -> pd.DataFrame:
@@ -225,7 +225,7 @@ def oblicz_roi_portfela(transakcje: list) -> pd.DataFrame:
             wartosc_rynkowa += max(ilosc_netto, 0) * df_hist.loc[data_idx, ticker]
             kapital_zainwestowany += max(koszt_netto, 0)
         roi = ((wartosc_rynkowa - kapital_zainwestowany) / kapital_zainwestowany * 100) if kapital_zainwestowany > 0 else 0
-        wyniki.append({"Data": data_idx, "ROI (%)": round(roi, 2), "Wartość (\u00a3)": round(wartosc_rynkowa, 2), "Kapitał (\u00a3)": round(kapital_zainwestowany, 2)})
+        wyniki.append({"Data": data_idx, "ROI (%)": round(roi, 2), "Wartość ($)": round(wartosc_rynkowa, 2), "Kapitał ($)": round(kapital_zainwestowany, 2)})
     return pd.DataFrame(wyniki)
 
 # =============================================================================
@@ -408,7 +408,7 @@ def main():
             ticker_in = st.text_input("Ticker", value=ticker_z_bazy, placeholder="np. AAPL, CDR.WA, BTC-GBP")
             typ = st.radio("Typ", ["Kupno", "Sprzedaż"], horizontal=True)
             ilosc = st.number_input("Ilość", min_value=0.0001, value=1.0, step=0.1, format="%.4f")
-            cena = st.number_input("Cena zakupu (£)", min_value=0.01, value=100.0, step=0.01, format="%.2f")
+            cena = st.number_input("Cena zakupu ($)", min_value=0.01, value=100.0, step=0.01, format="%.2f")
             data_tx = st.date_input("Data", value=date.today())
             dodaj = st.form_submit_button("➕ Dodaj", use_container_width=True)
 
@@ -427,7 +427,7 @@ def main():
                             st.error(f"❌ Masz tylko {posiadane:.4f} {tk}"); st.stop()
                     dodaj_transakcje(db, uid, st.session_state.aktywny_portfel,
                         {"ticker": tk, "ilosc": il, "cena_zakupu": cn, "data": str(data_tx), "typ": typ})
-                    st.success(f"✅ {typ}: {il}× {tk} @ £{cn:.2f}")
+                    st.success(f"✅ {typ}: {il}× {tk} @ ${cn:.2f}")
                     st.rerun()
 
         # Lista transakcji
@@ -439,7 +439,7 @@ def main():
                 for t in transakcje:
                     emoji = "🟢" if t["typ"] == "Kupno" else "🔴"
                     c1, c2 = st.columns([4, 1])
-                    with c1: st.caption(f"{emoji} {t['typ']}: {t['ilosc']}× {t['ticker']} @ £{float(t['cena_zakupu']):.2f}")
+                    with c1: st.caption(f"{emoji} {t['typ']}: {t['ilosc']}× {t['ticker']} @ ${float(t['cena_zakupu']):.2f}")
                     with c2:
                         if st.button("🗑️", key=f"del_{t['id']}"):
                             usun_transakcje(db, uid, st.session_state.aktywny_portfel, t["id"])
@@ -457,7 +457,7 @@ def main():
     # DASHBOARD
     # =========================================================================
     st.markdown('<p class="app-title">📊 beta1 — Portfolio Tracker</p>', unsafe_allow_html=True)
-    st.markdown('<p class="app-subtitle">Dane z opóźnieniem ~15 min | Waluta: GBP (£)</p>', unsafe_allow_html=True)
+    st.markdown('<p class="app-subtitle">Dane z opóźnieniem ~15 min | Waluta: USD ($)</p>', unsafe_allow_html=True)
 
     if not st.session_state.aktywny_portfel:
         st.warning("Utwórz portfel w panelu bocznym."); return
@@ -474,8 +474,8 @@ def main():
         st.warning("⚠️ Brak aktywnych pozycji."); return
 
     # --- METRIC CARDS ---
-    lw = portfel_df["Wartość (£)"].sum()
-    lk = (portfel_df["Śr. Cena Zakupu (£)"] * portfel_df["Ilość"]).sum()
+    lw = portfel_df["Wartość ($)"].sum()
+    lk = (portfel_df["Śr. Cena Zakupu ($)"] * portfel_df["Ilość"]).sum()
     lz = lw - lk
     lr = ((lw - lk) / lk * 100) if lk > 0 else 0
     kz = "delta-positive" if lz >= 0 else "delta-negative"
@@ -484,11 +484,11 @@ def main():
     c1, c2, c3 = st.columns(3)
     with c1:
         st.markdown(f'<div class="metric-card"><div class="label">Wartość Portfela</div>'
-            f'<div class="value">£{lw:,.2f}</div>'
-            f'<div style="color:{paleta[2]}">Zainwestowano: £{lk:,.2f}</div></div>', unsafe_allow_html=True)
+            f'<div class="value">${lw:,.2f}</div>'
+            f'<div style="color:{paleta[2]}">Zainwestowano: ${lk:,.2f}</div></div>', unsafe_allow_html=True)
     with c2:
         st.markdown(f'<div class="metric-card"><div class="label">Zysk / Strata</div>'
-            f'<div class="value {kz}">{zn}£{lz:,.2f}</div>'
+            f'<div class="value {kz}">{zn}${lz:,.2f}</div>'
             f'<div class="{kz}">{zn}{lr:.2f}%</div></div>', unsafe_allow_html=True)
     with c3:
         najl = portfel_df.loc[portfel_df["ROI (%)"].idxmax()]
@@ -507,9 +507,9 @@ def main():
             elif v < 0: return "color:#FF1744;font-weight:600"
         except: pass
         return ""
-    styled = portfel_df.style.applymap(kol_w, subset=["Zysk/Strata (£)", "ROI (%)", "Zmienność (%)"]).format({
-        "Ilość": "{:.4f}", "Śr. Cena Zakupu (£)": "£{:,.2f}", "Cena Bieżąca (£)": "£{:,.2f}",
-        "Wartość (£)": "£{:,.2f}", "Zysk/Strata (£)": "{:+,.2f}£", "ROI (%)": "{:+.2f}%", "Zmienność (%)": "{:+.2f}%"})
+    styled = portfel_df.style.applymap(kol_w, subset=["Zysk/Strata ($)", "ROI (%)", "Zmienność (%)"]).format({
+        "Ilość": "{:.4f}", "Śr. Cena Zakupu ($)": "${:,.2f}", "Cena Bieżąca ($)": "${:,.2f}",
+        "Wartość ($)": "${:,.2f}", "Zysk/Strata ($)": "{:+,.2f}$", "ROI (%)": "{:+.2f}%", "Zmienność (%)": "{:+.2f}%"})
     st.dataframe(styled, use_container_width=True, hide_index=True)
 
     # --- WYKRESY ---
@@ -521,16 +521,16 @@ def main():
     ch1, ch2 = st.columns(2)
     with ch1:
         st.markdown('<div class="section-header">🥧 Alokacja</div>', unsafe_allow_html=True)
-        fig_pie = px.pie(portfel_df, values="Wartość (£)", names="Ticker", color_discrete_sequence=paleta, hole=0.4)
+        fig_pie = px.pie(portfel_df, values="Wartość ($)", names="Ticker", color_discrete_sequence=paleta, hole=0.4)
         fig_pie.update_traces(textposition="inside", textinfo="percent+label")
         fig_pie.update_layout(**layout_base, legend=dict(orientation="h", y=-0.2))
         st.plotly_chart(fig_pie, use_container_width=True)
     with ch2:
         st.markdown('<div class="section-header">📊 Zysk/Strata</div>', unsafe_allow_html=True)
-        colors_bar = ["#00C853" if v >= 0 else "#FF1744" for v in portfel_df["Zysk/Strata (£)"]]
-        fig_bar = go.Figure(go.Bar(x=portfel_df["Ticker"], y=portfel_df["Zysk/Strata (£)"], marker_color=colors_bar))
+        colors_bar = ["#00C853" if v >= 0 else "#FF1744" for v in portfel_df["Zysk/Strata ($)"]]
+        fig_bar = go.Figure(go.Bar(x=portfel_df["Ticker"], y=portfel_df["Zysk/Strata ($)"], marker_color=colors_bar))
         fig_bar.update_layout(**layout_base, xaxis=dict(showgrid=False),
-            yaxis=dict(showgrid=True, gridcolor="rgba(128,128,128,0.2)", title="£"))
+            yaxis=dict(showgrid=True, gridcolor="rgba(128,128,128,0.2)", title="$"))
         st.plotly_chart(fig_bar, use_container_width=True)
 
     # --- HISTORIA ---
@@ -538,10 +538,10 @@ def main():
     with st.spinner("📊 Generuję historię..."):
         hist_df = oblicz_historie_portfela(transakcje)
     if not hist_df.empty:
-        fig_line = px.area(hist_df, x="Data", y="Wartość Portfela (£)", color_discrete_sequence=[paleta[0]])
+        fig_line = px.area(hist_df, x="Data", y="Wartość Portfela ($)", color_discrete_sequence=[paleta[0]])
         fig_line.update_traces(fill="tozeroy", fillcolor=hex_to_rgba(paleta[0], 0.13), line=dict(width=2.5))
         fig_line.update_layout(**layout_base, xaxis=dict(showgrid=False, title=""),
-            yaxis=dict(showgrid=True, gridcolor="rgba(128,128,128,0.2)", title="£"))
+            yaxis=dict(showgrid=True, gridcolor="rgba(128,128,128,0.2)", title="$"))
         st.plotly_chart(fig_line, use_container_width=True)
 
     # --- ZWROT Z KAPITAŁU (ROI%) ---
@@ -573,7 +573,7 @@ def main():
             ax=40, ay=-20
         )
         fig_roi.update_layout(
-            **layout_base, height=350,
+            **{**layout_base, "height": 350},
             xaxis=dict(showgrid=False, title=""),
             yaxis=dict(
                 showgrid=True, gridcolor="rgba(128,128,128,0.2)",
