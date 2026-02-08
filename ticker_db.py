@@ -633,28 +633,71 @@ TICKER_DATABASE = {
 
 def szukaj_tickery(zapytanie: str, limit: int = 15) -> list:
     """
-    Wyszukuje tickery na podstawie zapytania (ticker lub nazwa spółki).
-    Zwraca listę pasujących kluczy z TICKER_DATABASE.
+    Szuka tickerów — najpierw w statycznej bazie, potem dynamicznie w Yahoo Finance.
+    Zwraca listę kluczy "TICKER — Nazwa".
     """
-    if not zapytanie or len(zapytanie) < 1:
+    if not zapytanie or len(zapytanie.strip()) < 1:
         return list(TICKER_DATABASE.keys())[:limit]
 
     zapytanie = zapytanie.upper().strip()
     wyniki = []
 
-    # Najpierw: dokładne dopasowanie tickera
+    # 1) Statyczna baza — dokładne dopasowanie tickera
     for klucz, ticker in TICKER_DATABASE.items():
         if ticker.upper() == zapytanie:
             wyniki.insert(0, klucz)
 
-    # Potem: ticker zaczyna się od zapytania
+    # 2) Statyczna baza — ticker zaczyna się od zapytania
     for klucz, ticker in TICKER_DATABASE.items():
         if ticker.upper().startswith(zapytanie) and klucz not in wyniki:
             wyniki.append(klucz)
 
-    # Na końcu: nazwa zawiera zapytanie
+    # 3) Statyczna baza — nazwa zawiera zapytanie
     for klucz in TICKER_DATABASE:
         if zapytanie in klucz.upper() and klucz not in wyniki:
             wyniki.append(klucz)
 
+    # 4) Dynamiczne wyszukiwanie Yahoo Finance (jeśli mało wyników)
+    if len(wyniki) < limit:
+        try:
+            yahoo_results = _yahoo_search(zapytanie, limit - len(wyniki))
+            for item in yahoo_results:
+                klucz = f"{item['symbol']} — {item['name']}"
+                if klucz not in wyniki:
+                    # Dodaj do tymczasowej bazy żeby selectbox mógł go znaleźć
+                    TICKER_DATABASE[klucz] = item["symbol"]
+                    wyniki.append(klucz)
+        except Exception:
+            pass
+
     return wyniki[:limit]
+
+
+def _yahoo_search(query: str, limit: int = 10) -> list:
+    """
+    Dynamiczne wyszukiwanie tickerów przez Yahoo Finance API.
+    Zwraca listę dict: [{"symbol": "ARCH", "name": "Arch Resources Inc."}, ...]
+    """
+    import requests as req
+    url = "https://query2.finance.yahoo.com/v1/finance/search"
+    params = {
+        "q": query,
+        "quotesCount": limit,
+        "newsCount": 0,
+        "listsCount": 0,
+        "enableFuzzyQuery": True,
+        "quotesQueryId": "tss_match_phrase_query",
+    }
+    headers = {"User-Agent": "Mozilla/5.0"}
+    try:
+        resp = req.get(url, params=params, headers=headers, timeout=5)
+        data = resp.json()
+        results = []
+        for q in data.get("quotes", []):
+            symbol = q.get("symbol", "")
+            name = q.get("shortname") or q.get("longname") or q.get("symbol", "")
+            if symbol:
+                results.append({"symbol": symbol, "name": name})
+        return results
+    except Exception:
+        return []
