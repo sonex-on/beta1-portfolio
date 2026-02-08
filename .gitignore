@@ -1,0 +1,26 @@
+# Klucze i sekrety
+secret.key
+firebase_service_account.json
+firebase_web_config.json
+*.enc
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.vscode/
+.idea/
+
+# System
+.DS_Store
+Thumbs.db
+
+# Build / EXE
+dist/
+build/
+*.spec
+*.exe
+launcher.py
+portfel_dane.csv.enc
