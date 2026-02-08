@@ -80,6 +80,11 @@ TRANSLATIONS = {
         "roi_ylabel": "Stopa zwrotu (%)",
         "your_portfolio": "Twój Portfel",
         "daily_volatility": "📉 Zmienność Dzienna",
+        "portfolio_change_title": "📊 Zmiana Portfela",
+        "timeframe": "Rama czasowa",
+        "change_label": "Zmiana",
+        "loading_chart": "📊 Generuję wykres...",
+        "portfolio_value_label": "Wartość ($)",
 
         # --- Security ---
         "captcha_label": "🧩 Weryfikacja",
@@ -173,6 +178,11 @@ TRANSLATIONS = {
         "roi_ylabel": "Return (%)",
         "your_portfolio": "Your Portfolio",
         "daily_volatility": "📉 Daily Volatility",
+        "portfolio_change_title": "📊 Portfolio Change",
+        "timeframe": "Timeframe",
+        "change_label": "Change",
+        "loading_chart": "📊 Generating chart...",
+        "portfolio_value_label": "Value ($)",
 
         # --- Security ---
         "captcha_label": "🧩 Verification",

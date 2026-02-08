@@ -764,6 +764,132 @@ def main():
         )
         st.plotly_chart(fig_roi, use_container_width=True)
 
+    # --- ZMIANA PORTFELA (z wyborem ramy czasowej) ---
+    st.markdown(f'<div class="section-header">{t("portfolio_change_title", L)}</div>', unsafe_allow_html=True)
+
+    TIMEFRAMES = {
+        "1h": ("1d", "5m"),
+        "4h": ("1d", "15m"),
+        "12h": ("5d", "30m"),
+        "1D": ("5d", "1h"),
+        "7D": ("1mo", "1d"),
+        "30D": ("3mo", "1d"),
+        "6M": ("6mo", "1d"),
+        "1Y": ("1y", "1d"),
+        "2Y": ("2y", "1wk"),
+        "5Y": ("5y", "1wk"),
+        "10Y": ("10y", "1mo"),
+        "20Y": ("20y", "1mo"),
+        "30Y": ("max", "1mo"),
+    }
+
+    tf_labels = list(TIMEFRAMES.keys())
+    if "tf_idx" not in st.session_state:
+        st.session_state.tf_idx = tf_labels.index("1D")
+    selected_tf = st.radio(t("timeframe", L), tf_labels, index=st.session_state.tf_idx,
+                           horizontal=True, key="tf_radio", label_visibility="collapsed")
+    st.session_state.tf_idx = tf_labels.index(selected_tf)
+
+    yf_period, yf_interval = TIMEFRAMES[selected_tf]
+
+    with st.spinner(t("loading_chart", L)):
+        # Pobierz dane portfela wg wybranej ramy
+        tickery_portfela = portfel_df["Ticker"].tolist()
+        ilosci = {r["Ticker"]: r["Ilość"] for _, r in portfel_df.iterrows()}
+
+        # Pobierz wspólną historię cen
+        dane_tf = {}
+        for tk in tickery_portfela:
+            try:
+                hist = yf.Ticker(tk).history(period=yf_period, interval=yf_interval)
+                if not hist.empty:
+                    dane_tf[tk] = hist["Close"]
+            except Exception:
+                pass
+
+        if dane_tf:
+            df_tf = pd.DataFrame(dane_tf).ffill().bfill().dropna()
+
+            if not df_tf.empty and len(df_tf) > 1:
+                # Oblicz wartość portfela w każdym punkcie
+                wartosci_p = pd.Series(0.0, index=df_tf.index)
+                for tk in tickery_portfela:
+                    if tk in df_tf.columns:
+                        wartosci_p += df_tf[tk] * ilosci.get(tk, 0)
+
+                # Zmiana procentowa od początku okresu
+                pct_change = ((wartosci_p / wartosci_p.iloc[0]) - 1) * 100
+                zmiana_total = pct_change.iloc[-1]
+                wartosc_start = wartosci_p.iloc[0]
+                wartosc_koniec = wartosci_p.iloc[-1]
+
+                kolor_zmiany = "#00C853" if zmiana_total >= 0 else "#FF1744"
+                kolor_fill = hex_to_rgba(kolor_zmiany, 0.1)
+
+                fig_tf = go.Figure()
+
+                # Linia wartości portfela
+                fig_tf.add_trace(go.Scatter(
+                    x=wartosci_p.index, y=wartosci_p.values,
+                    mode="lines", name=t("portfolio_value_label", L),
+                    line=dict(color=kolor_zmiany, width=2.5),
+                    fill="tozeroy", fillcolor=kolor_fill,
+                    hovertemplate="<b>%{x}</b><br>" + t("portfolio_value_label", L) + ": $%{y:,.2f}<extra></extra>",
+                ))
+
+                # Linia bazowa (wartość startowa)
+                fig_tf.add_hline(y=wartosc_start, line_dash="dash",
+                                 line_color="rgba(128,128,128,0.5)", line_width=1)
+
+                # Etykieta z ceną końcową i % zmianą
+                znak = "+" if zmiana_total >= 0 else ""
+                fig_tf.add_annotation(
+                    x=wartosci_p.index[-1], y=wartosc_koniec,
+                    text=f"<b>${wartosc_koniec:,.2f}</b><br>{znak}{zmiana_total:.2f}%",
+                    showarrow=True, arrowhead=2, arrowsize=1, arrowcolor=kolor_zmiany,
+                    bgcolor=kolor_zmiany, font=dict(color="white", size=11),
+                    bordercolor=kolor_zmiany, borderwidth=1, borderpad=4,
+                    ax=50, ay=-30,
+                )
+
+                # Etykieta z ceną startową
+                fig_tf.add_annotation(
+                    x=wartosci_p.index[0], y=wartosc_start,
+                    text=f"<b>${wartosc_start:,.2f}</b>",
+                    showarrow=True, arrowhead=0, arrowsize=1,
+                    arrowcolor="rgba(128,128,128,0.5)",
+                    bgcolor="rgba(128,128,128,0.7)", font=dict(color="white", size=10),
+                    borderpad=3, ax=-50, ay=20,
+                )
+
+                fig_tf.update_layout(
+                    **{**layout_base, "height": 400},
+                    xaxis=dict(showgrid=False, title=""),
+                    yaxis=dict(
+                        showgrid=True, gridcolor="rgba(128,128,128,0.15)",
+                        title="$", zeroline=False,
+                    ),
+                    showlegend=False,
+                )
+                st.plotly_chart(fig_tf, use_container_width=True)
+
+                # Podsumowanie pod wykresem
+                delta_dollars = wartosc_koniec - wartosc_start
+                d_kz = "delta-positive" if delta_dollars >= 0 else "delta-negative"
+                d_zn = "+" if delta_dollars >= 0 else ""
+                st.markdown(
+                    f'<div style="text-align:center;padding:8px;">'
+                    f'<span class="{d_kz}" style="font-size:1.1rem;font-weight:700;">'
+                    f'{d_zn}${abs(delta_dollars):,.2f} ({d_zn}{zmiana_total:.2f}%)</span>'
+                    f' · {selected_tf}'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+            else:
+                st.info(f"⚠️ {t('no_positions', L)}") if not df_tf.empty else None
+        else:
+            st.info(f"⚠️ {t('no_positions', L)}")
+
     # --- ZMIENNOŚĆ (ultra-compact, narrow column) ---
     vol_col, _ = st.columns([1, 4])
     with vol_col:
