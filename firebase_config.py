@@ -36,25 +36,23 @@ def inicjalizuj_firebase():
 
 def pobierz_api_key():
     """Pobiera Firebase Web API Key z konfiguracji."""
-    # Próba z st.secrets — różne warianty nazwy klucza
-    mozliwe_klucze = ["firebase_web_api_key", "firebase-web-api-key", "FIREBASE_WEB_API_KEY", "apiKey"]
-    for klucz in mozliwe_klucze:
-        try:
-            val = st.secrets.get(klucz)
-            if val:
-                return str(val).strip()
-        except Exception:
-            pass
-
-    # Próba z zagnieżdżoną sekcją [firebase_web_config]
+    # 1) Wewnątrz sekcji [firebase_service_account] (TOML zagnieżdżony)
     try:
-        val = st.secrets.get("firebase_web_config", {}).get("apiKey")
+        val = st.secrets["firebase_service_account"].get("firebase_web_api_key")
         if val:
             return str(val).strip()
     except Exception:
         pass
 
-    # Próba z pliku lokalnego
+    # 2) Top-level klucz
+    try:
+        val = st.secrets.get("firebase_web_api_key")
+        if val:
+            return str(val).strip()
+    except Exception:
+        pass
+
+    # 3) Plik lokalny
     try:
         with open("firebase_web_config.json", "r") as f:
             config = json.load(f)
@@ -62,12 +60,7 @@ def pobierz_api_key():
     except Exception:
         pass
 
-    # Debug — pokaż dostępne klucze
-    try:
-        dostepne = list(st.secrets.keys()) if hasattr(st.secrets, 'keys') else []
-        st.error(f"❌ Brak Firebase Web API Key! Dostępne sekrety: {dostepne}")
-    except Exception:
-        st.error("❌ Brak Firebase Web API Key i brak dostępu do sekretów!")
+    st.error("❌ Brak Firebase Web API Key!")
     st.stop()
 
 # =============================================================================
