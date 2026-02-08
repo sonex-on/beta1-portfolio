@@ -397,14 +397,11 @@ def ekran_autentykacji():
                     q, a = _generate_captcha()
                     st.session_state._captcha_q, st.session_state._captcha_a = q, a
                 else:
-                    # Check email verification
+                    # Check email verification (soft warning, don't block)
                     if not sprawdz_weryfikacje(wynik["id_token"]):
-                        st.warning(t("email_not_verified", L))
-                        # Offer resend
                         st.session_state._unverified_token = wynik["id_token"]
-                        st.stop()
 
-                    # Success!
+                    # Success — allow login regardless of verification status
                     st.session_state._login_attempts[email_clean] = 0
                     st.session_state.zalogowany = True
                     st.session_state.uid = wynik["uid"]
