@@ -188,6 +188,46 @@ def oblicz_historie_portfela(transakcje: list) -> pd.DataFrame:
         wartosci.append({"Data": data_idx, "Wartość Portfela (£)": round(wartosc_dnia, 2)})
     return pd.DataFrame(wartosci)
 
+def oblicz_roi_portfela(transakcje: list) -> pd.DataFrame:
+    """Oblicza dzienną stopę zwrotu (ROI%) całego portfela w czasie."""
+    if not transakcje: return pd.DataFrame()
+    df = pd.DataFrame(transakcje)
+    df["data"] = pd.to_datetime(df["data"])
+    df["ilosc"] = df["ilosc"].astype(float)
+    df["cena_zakupu"] = df["cena_zakupu"].astype(float)
+    data_start = df["data"].min().strftime("%Y-%m-%d")
+    # Pobierz historię cen
+    historie = {}
+    for ticker in df["ticker"].unique():
+        h = pobierz_historie(ticker, data_start)
+        if not h.empty: historie[ticker] = h.set_index("Data")["Zamkniecie"]
+    if not historie: return pd.DataFrame()
+    df_hist = pd.DataFrame(historie).ffill().bfill()
+    wyniki = []
+    for data_idx in df_hist.index:
+        wartosc_rynkowa = 0.0
+        kapital_zainwestowany = 0.0
+        for ticker in df["ticker"].unique():
+            if ticker not in df_hist.columns: continue
+            trans = df[(df["ticker"] == ticker) & (df["data"] <= data_idx)]
+            ilosc_netto = 0.0
+            koszt_netto = 0.0
+            for _, r in trans.iterrows():
+                if r["typ"] == "Kupno":
+                    ilosc_netto += r["ilosc"]
+                    koszt_netto += r["ilosc"] * r["cena_zakupu"]
+                else:
+                    if ilosc_netto > 0:
+                        sr = koszt_netto / ilosc_netto
+                        sprzedaz = min(r["ilosc"], ilosc_netto)
+                        koszt_netto -= sr * sprzedaz
+                        ilosc_netto -= sprzedaz
+            wartosc_rynkowa += max(ilosc_netto, 0) * df_hist.loc[data_idx, ticker]
+            kapital_zainwestowany += max(koszt_netto, 0)
+        roi = ((wartosc_rynkowa - kapital_zainwestowany) / kapital_zainwestowany * 100) if kapital_zainwestowany > 0 else 0
+        wyniki.append({"Data": data_idx, "ROI (%)": round(roi, 2), "Wartość (\u00a3)": round(wartosc_rynkowa, 2), "Kapitał (\u00a3)": round(kapital_zainwestowany, 2)})
+    return pd.DataFrame(wyniki)
+
 # =============================================================================
 # EKRAN LOGOWANIA / REJESTRACJI
 # =============================================================================
@@ -503,6 +543,46 @@ def main():
         fig_line.update_layout(**layout_base, xaxis=dict(showgrid=False, title=""),
             yaxis=dict(showgrid=True, gridcolor="rgba(128,128,128,0.2)", title="£"))
         st.plotly_chart(fig_line, use_container_width=True)
+
+    # --- ZWROT Z KAPITAŁU (ROI%) ---
+    st.markdown('<div class="section-header">📈 Zwrot z Kapitału (%)</div>', unsafe_allow_html=True)
+    with st.spinner("📊 Obliczam stopę zwrotu..."):
+        roi_df = oblicz_roi_portfela(transakcje)
+    if not roi_df.empty and len(roi_df) > 1:
+        ostatni_roi = roi_df["ROI (%)"].iloc[-1]
+        kolor_roi = "#00C853" if ostatni_roi >= 0 else "#FF1744"
+        kolor_fill = hex_to_rgba("#00C853" if ostatni_roi >= 0 else "#FF1744", 0.1)
+
+        fig_roi = go.Figure()
+        # Linia 0% jako odniesienie
+        fig_roi.add_hline(y=0, line_dash="dash", line_color="rgba(128,128,128,0.5)", line_width=1)
+        # Główna linia ROI
+        fig_roi.add_trace(go.Scatter(
+            x=roi_df["Data"], y=roi_df["ROI (%)"],
+            mode="lines", name="Twój Portfel",
+            line=dict(color=kolor_roi, width=2.5),
+            fill="tozeroy", fillcolor=kolor_fill,
+        ))
+        # Etykieta z aktualnym ROI% na końcu linii
+        fig_roi.add_annotation(
+            x=roi_df["Data"].iloc[-1], y=ostatni_roi,
+            text=f"<b>{ostatni_roi:+.2f}%</b>",
+            showarrow=True, arrowhead=2, arrowsize=1, arrowcolor=kolor_roi,
+            bgcolor=kolor_roi, font=dict(color="white", size=12),
+            bordercolor=kolor_roi, borderwidth=1, borderpad=4,
+            ax=40, ay=-20
+        )
+        fig_roi.update_layout(
+            **layout_base, height=350,
+            xaxis=dict(showgrid=False, title=""),
+            yaxis=dict(
+                showgrid=True, gridcolor="rgba(128,128,128,0.2)",
+                title="Stopa zwrotu (%)", zeroline=True,
+                zerolinecolor="rgba(128,128,128,0.5)", zerolinewidth=1
+            ),
+            showlegend=True, legend=dict(orientation="h", y=-0.15, x=0.5, xanchor="center")
+        )
+        st.plotly_chart(fig_roi, use_container_width=True)
 
     # --- ZMIENNOŚĆ ---
     st.markdown('<div class="section-header">📉 Zmienność Dzienna</div>', unsafe_allow_html=True)
