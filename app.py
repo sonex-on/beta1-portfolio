@@ -274,8 +274,9 @@ def oblicz_roi_portfela(transakcje: list) -> pd.DataFrame:
         wyniki.append({"Data": data_idx, "ROI (%)": round(roi, 2), "Wartość ($)": round(wartosc_rynkowa, 2), "Kapitał ($)": round(kapital_zainwestowany, 2)})
     return pd.DataFrame(wyniki)
 
+@st.cache_resource
 def _get_cookie_manager():
-    """Zwraca instancję CookieManager (singleton per session)."""
+    """Zwraca instancję CookieManager (singleton)."""
     import extra_streamlit_components as stx
     return stx.CookieManager(key="pi_cookies")
 
