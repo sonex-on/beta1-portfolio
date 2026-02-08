@@ -36,16 +36,39 @@ def inicjalizuj_firebase():
 
 def pobierz_api_key():
     """Pobiera Firebase Web API Key z konfiguracji."""
-    try:
-        return st.secrets["firebase_web_api_key"]
-    except KeyError:
+    # Próba z st.secrets — różne warianty nazwy klucza
+    mozliwe_klucze = ["firebase_web_api_key", "firebase-web-api-key", "FIREBASE_WEB_API_KEY", "apiKey"]
+    for klucz in mozliwe_klucze:
         try:
-            with open("firebase_web_config.json", "r") as f:
-                config = json.load(f)
-                return config["apiKey"]
+            val = st.secrets.get(klucz)
+            if val:
+                return str(val).strip()
         except Exception:
-            st.error("❌ Brak Firebase Web API Key!")
-            st.stop()
+            pass
+
+    # Próba z zagnieżdżoną sekcją [firebase_web_config]
+    try:
+        val = st.secrets.get("firebase_web_config", {}).get("apiKey")
+        if val:
+            return str(val).strip()
+    except Exception:
+        pass
+
+    # Próba z pliku lokalnego
+    try:
+        with open("firebase_web_config.json", "r") as f:
+            config = json.load(f)
+            return config["apiKey"]
+    except Exception:
+        pass
+
+    # Debug — pokaż dostępne klucze
+    try:
+        dostepne = list(st.secrets.keys()) if hasattr(st.secrets, 'keys') else []
+        st.error(f"❌ Brak Firebase Web API Key! Dostępne sekrety: {dostepne}")
+    except Exception:
+        st.error("❌ Brak Firebase Web API Key i brak dostępu do sekretów!")
+    st.stop()
 
 # =============================================================================
 # AUTENTYKACJA — Firebase Auth REST API
