@@ -258,7 +258,7 @@ def ekran_autentykacji():
         with c2:
             st.image(LOGO_PATH, width=120)
 
-    st.markdown('<p class="app-title">beta1</p>', unsafe_allow_html=True)
+    st.markdown('<p class="app-title">Portfel inwestycyjny</p>', unsafe_allow_html=True)
 
     L = st.session_state.lang
     st.markdown(f'<p class="app-subtitle">{t("auth_subtitle", L)}</p>', unsafe_allow_html=True)
@@ -334,7 +334,7 @@ def ekran_autentykacji():
 # GŁÓWNA APLIKACJA
 # =============================================================================
 def main():
-    st.set_page_config(page_title="beta1 — Portfolio Tracker", page_icon="📊",
+    st.set_page_config(page_title="Portfel inwestycyjny", page_icon="📊",
                        layout="wide", initial_sidebar_state="expanded")
 
     # --- Autentykacja ---
@@ -358,7 +358,7 @@ def main():
     with st.sidebar:
         if os.path.exists(LOGO_PATH):
             st.image(LOGO_PATH, width=100)
-        st.markdown('<p class="app-title">beta1</p>', unsafe_allow_html=True)
+        st.markdown('<p class="app-title">Portfel inwestycyjny</p>', unsafe_allow_html=True)
         st.caption(f"👤 {st.session_state.email}")
 
         if st.button(t("logout", L), use_container_width=True):
@@ -493,7 +493,7 @@ def main():
     # =========================================================================
     # DASHBOARD
     # =========================================================================
-    st.markdown('<p class="app-title">📊 beta1 — Portfolio Tracker</p>', unsafe_allow_html=True)
+    st.markdown('<p class="app-title">📊 Portfel inwestycyjny</p>', unsafe_allow_html=True)
     st.markdown(f'<p class="app-subtitle">{t("app_subtitle", L)}</p>', unsafe_allow_html=True)
 
     if not st.session_state.aktywny_portfel:
@@ -664,7 +664,7 @@ def main():
 
     st.markdown("---")
     st.markdown(f'<p style="text-align:center;color:#64748b;font-size:0.75rem;font-weight:500;">'
-        f'beta1 Portfolio Tracker · Yahoo Finance · {datetime.now().strftime("%Y-%m-%d %H:%M")}</p>',
+        f'Portfel inwestycyjny · Yahoo Finance · {datetime.now().strftime("%Y-%m-%d %H:%M")}</p>',
         unsafe_allow_html=True)
 
 if __name__ == "__main__":
