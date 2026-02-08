@@ -429,8 +429,11 @@ def ekran_autentykacji():
         # Resend verification button
         if st.session_state.get("_unverified_token"):
             if st.button(t("resend_verification", L), key="btn_resend"):
-                wyslij_weryfikacje_email(st.session_state._unverified_token)
-                st.success(t("verification_sent", L))
+                res = wyslij_weryfikacje_email(st.session_state._unverified_token)
+                if res.get("error"):
+                    st.error(f"❌ {res['error']}")
+                else:
+                    st.success(t("verification_sent", L))
 
     # === REJESTRACJA ===
     else:
@@ -476,8 +479,12 @@ def ekran_autentykacji():
                         db = inicjalizuj_firebase()
                         zapisz_profil(db, wynik["uid"], wynik["email"])
                         # Send email verification
-                        wyslij_weryfikacje_email(wynik["id_token"])
-                        st.success(t("verify_email", L))
+                        ver_result = wyslij_weryfikacje_email(wynik["id_token"])
+                        if ver_result.get("error"):
+                            st.error(f"❌ Weryfikacja email: {ver_result['error']}")
+                            st.info("💡 Sprawdź czy w Firebase Console → Authentication → Sign-in method → Email/Password jest włączone.")
+                        else:
+                            st.success(f'{t("verify_email", L)} ({wynik["email"]})')
                         # Do NOT auto-login — require email verification first
                         # Regenerate CAPTCHA
                         q, a = _generate_captcha()
