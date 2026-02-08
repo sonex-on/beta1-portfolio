@@ -357,10 +357,6 @@ def ekran_autentykacji():
     # Tryb — radio
     tryb = st.radio(t("auth_select", L), [t("auth_login", L), t("auth_register", L)], horizontal=True, label_visibility="collapsed")
 
-    # --- CAPTCHA ---
-    st.markdown(f'**{t("captcha_label", L)}:** `{st.session_state._captcha_q}`')
-    captcha_answer = st.text_input(t("captcha_placeholder", L), key="captcha_input", max_chars=6)
-
     # === LOGOWANIE ===
     if tryb == t("auth_login", L):
         with st.form("login_form"):
@@ -371,17 +367,6 @@ def ekran_autentykacji():
 
             if zaloguj:
                 email_clean = sanitize_input(email.strip().lower(), 100)
-
-                # CAPTCHA check
-                try:
-                    if int(captcha_answer) != st.session_state._captcha_a:
-                        st.error(t("captcha_wrong", L))
-                        q, a = _generate_captcha()
-                        st.session_state._captcha_q, st.session_state._captcha_a = q, a
-                        st.stop()
-                except (ValueError, TypeError):
-                    st.error(t("captcha_wrong", L))
-                    st.stop()
 
                 # Email format
                 if not validate_email(email_clean):
@@ -449,6 +434,10 @@ def ekran_autentykacji():
 
     # === REJESTRACJA ===
     else:
+        # CAPTCHA — only for registration
+        st.markdown(f'**{t("captcha_label", L)}:** `{st.session_state._captcha_q}`')
+        captcha_answer = st.text_input(t("captcha_placeholder", L), key="captcha_input", max_chars=6)
+
         with st.form("register_form"):
             reg_email = st.text_input(t("email", L), placeholder="your@email.com")
             reg_haslo = st.text_input(t("password_min", L), type="password")
