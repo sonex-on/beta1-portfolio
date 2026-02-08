@@ -202,71 +202,70 @@ def ekran_autentykacji():
 
     zastosuj_motyw(True, "Oceanic")
 
-    col_l, col_c, col_r = st.columns([1, 2, 1])
-    with col_c:
-        # Logo
-        if os.path.exists(LOGO_PATH):
-            st.markdown('<div class="logo-center">', unsafe_allow_html=True)
+    # Logo — centrowane
+    if os.path.exists(LOGO_PATH):
+        c1, c2, c3 = st.columns([1, 1, 1])
+        with c2:
             st.image(LOGO_PATH, width=120)
-            st.markdown('</div>', unsafe_allow_html=True)
 
-        st.markdown('<p class="app-title">beta1</p>', unsafe_allow_html=True)
-        st.markdown('<p class="app-subtitle">Portfolio Tracker — Zaloguj się</p>', unsafe_allow_html=True)
+    st.markdown('<p class="app-title">beta1</p>', unsafe_allow_html=True)
+    st.markdown('<p class="app-subtitle">Portfolio Tracker — Zaloguj się</p>', unsafe_allow_html=True)
 
-        tab_login, tab_register = st.tabs(["🔑 Logowanie", "📝 Rejestracja"])
+    # Tryb — radio zamiast tabs (stabilniejsze na Streamlit Cloud)
+    tryb = st.radio("Wybierz akcję", ["🔑 Logowanie", "📝 Rejestracja"], horizontal=True, label_visibility="collapsed")
 
-        with tab_login:
-            with st.form("login_form"):
-                email = st.text_input("Email", placeholder="twoj@email.com")
-                haslo = st.text_input("Hasło", type="password")
-                zapamietaj = st.checkbox("🔒 Zapamiętaj mnie")
-                zaloguj = st.form_submit_button("Zaloguj się", use_container_width=True)
+    if tryb == "🔑 Logowanie":
+        with st.form("login_form"):
+            email = st.text_input("Email", placeholder="twoj@email.com")
+            haslo = st.text_input("Hasło", type="password")
+            zapamietaj = st.checkbox("🔒 Zapamiętaj mnie")
+            zaloguj = st.form_submit_button("Zaloguj się", use_container_width=True)
 
-                if zaloguj:
-                    if not email or not haslo:
-                        st.error("Wypełnij wszystkie pola!")
+            if zaloguj:
+                if not email or not haslo:
+                    st.error("Wypełnij wszystkie pola!")
+                else:
+                    with st.spinner("Logowanie..."):
+                        wynik = zaloguj_uzytkownika(email.strip(), haslo)
+                    if wynik.get("error"):
+                        st.error(f"❌ {wynik['error']}")
                     else:
-                        with st.spinner("Logowanie..."):
-                            wynik = zaloguj_uzytkownika(email.strip(), haslo)
-                        if wynik.get("error"):
-                            st.error(f"❌ {wynik['error']}")
-                        else:
-                            st.session_state.zalogowany = True
-                            st.session_state.uid = wynik["uid"]
-                            st.session_state.email = wynik["email"]
-                            st.session_state.id_token = wynik["id_token"]
-                            st.success("✅ Zalogowano!")
-                            st.rerun()
+                        st.session_state.zalogowany = True
+                        st.session_state.uid = wynik["uid"]
+                        st.session_state.email = wynik["email"]
+                        st.session_state.id_token = wynik["id_token"]
+                        st.success("✅ Zalogowano!")
+                        st.rerun()
 
-        with tab_register:
-            with st.form("register_form"):
-                reg_email = st.text_input("Email", placeholder="twoj@email.com", key="reg_email")
-                reg_haslo = st.text_input("Hasło (min. 6 znaków)", type="password", key="reg_pass")
-                reg_haslo2 = st.text_input("Powtórz hasło", type="password", key="reg_pass2")
-                zarejestruj = st.form_submit_button("Zarejestruj się", use_container_width=True)
+    else:
+        with st.form("register_form"):
+            reg_email = st.text_input("Email", placeholder="twoj@email.com")
+            reg_haslo = st.text_input("Hasło (min. 6 znaków)", type="password")
+            reg_haslo2 = st.text_input("Powtórz hasło", type="password")
+            zarejestruj = st.form_submit_button("Zarejestruj się", use_container_width=True)
 
-                if zarejestruj:
-                    if not reg_email or not reg_haslo:
-                        st.error("Wypełnij wszystkie pola!")
-                    elif reg_haslo != reg_haslo2:
-                        st.error("Hasła nie są identyczne!")
-                    elif len(reg_haslo) < 6:
-                        st.error("Hasło musi mieć min. 6 znaków!")
+            if zarejestruj:
+                if not reg_email or not reg_haslo:
+                    st.error("Wypełnij wszystkie pola!")
+                elif reg_haslo != reg_haslo2:
+                    st.error("Hasła nie są identyczne!")
+                elif len(reg_haslo) < 6:
+                    st.error("Hasło musi mieć min. 6 znaków!")
+                else:
+                    with st.spinner("Rejestracja..."):
+                        wynik = zarejestruj_uzytkownika(reg_email.strip(), reg_haslo)
+                    if wynik.get("error"):
+                        st.error(f"❌ {wynik['error']}")
                     else:
-                        with st.spinner("Rejestracja..."):
-                            wynik = zarejestruj_uzytkownika(reg_email.strip(), reg_haslo)
-                        if wynik.get("error"):
-                            st.error(f"❌ {wynik['error']}")
-                        else:
-                            # Zapisz profil w Firestore
-                            db = inicjalizuj_firebase()
-                            zapisz_profil(db, wynik["uid"], wynik["email"])
-                            st.session_state.zalogowany = True
-                            st.session_state.uid = wynik["uid"]
-                            st.session_state.email = wynik["email"]
-                            st.session_state.id_token = wynik["id_token"]
-                            st.success("✅ Konto utworzone! Witaj w beta1!")
-                            st.rerun()
+                        # Zapisz profil w Firestore
+                        db = inicjalizuj_firebase()
+                        zapisz_profil(db, wynik["uid"], wynik["email"])
+                        st.session_state.zalogowany = True
+                        st.session_state.uid = wynik["uid"]
+                        st.session_state.email = wynik["email"]
+                        st.session_state.id_token = wynik["id_token"]
+                        st.success("✅ Konto utworzone! Witaj w beta1!")
+                        st.rerun()
     return False
 
 # =============================================================================
