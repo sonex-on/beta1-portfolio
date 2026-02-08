@@ -274,27 +274,10 @@ def oblicz_roi_portfela(transakcje: list) -> pd.DataFrame:
         wyniki.append({"Data": data_idx, "ROI (%)": round(roi, 2), "Wartość ($)": round(wartosc_rynkowa, 2), "Kapitał ($)": round(kapital_zainwestowany, 2)})
     return pd.DataFrame(wyniki)
 
-def _get_cookie_manager():
-    """Zwraca instancję CookieManager."""
-    import extra_streamlit_components as stx
-    return stx.CookieManager(key="pi_cookies")
-
-def _zapisz_ciastka(cookie_mgr, uid, email, refresh_token):
-    """Zapisuje dane sesji w ciastkach przeglądarki."""
-    cookie_mgr.set("pi_uid", uid)
-    cookie_mgr.set("pi_email", email)
-    cookie_mgr.set("pi_refresh", refresh_token)
-
-def _wyczysc_ciastka(cookie_mgr):
-    """Czyści ciastka sesji."""
-    cookie_mgr.delete("pi_uid")
-    cookie_mgr.delete("pi_email")
-    cookie_mgr.delete("pi_refresh")
-
 # =============================================================================
 # EKRAN LOGOWANIA / REJESTRACJI
 # =============================================================================
-def ekran_autentykacji(cookie_mgr):
+def ekran_autentykacji():
     """Wyświetla formularz logowania lub rejestracji. Zwraca True jeśli zalogowany."""
     if st.session_state.get("zalogowany"):
         return True
@@ -311,23 +294,6 @@ def ekran_autentykacji(cookie_mgr):
         st.session_state._captcha_q = q
         st.session_state._captcha_a = a
 
-    # --- Próba automatycznego przywracania sesji z ciastek ---
-    cookies = cookie_mgr.get_all()
-    if cookies:
-        saved_uid = cookies.get("pi_uid")
-        saved_email = cookies.get("pi_email")
-        saved_refresh = cookies.get("pi_refresh")
-        if saved_uid and saved_refresh and not st.session_state.get("_tried_restore"):
-            st.session_state._tried_restore = True
-            wynik = odswiez_token(saved_refresh)
-            if not wynik.get("error"):
-                st.session_state.zalogowany = True
-                st.session_state.uid = wynik["uid"]
-                st.session_state.email = saved_email or wynik.get("email", "")
-                st.session_state.id_token = wynik["id_token"]
-                _zapisz_ciastka(cookie_mgr, wynik["uid"],
-                    st.session_state.email, wynik["refresh_token"])
-                st.rerun()
 
     zastosuj_motyw(True, "Oceanic")
 
@@ -406,8 +372,6 @@ def ekran_autentykacji(cookie_mgr):
                     st.session_state.uid = wynik["uid"]
                     st.session_state.email = wynik["email"]
                     st.session_state.id_token = wynik["id_token"]
-                    _zapisz_ciastka(cookie_mgr, wynik["uid"],
-                        wynik["email"], wynik.get("refresh_token", ""))
                     st.success(t("logged_in", L))
                     st.rerun()
 
@@ -494,11 +458,8 @@ def main():
     st.set_page_config(page_title="Portfel inwestycyjny", page_icon="📊",
                        layout="wide", initial_sidebar_state="expanded")
 
-    # --- CookieManager (jedna instancja) ---
-    cookie_mgr = _get_cookie_manager()
-
     # --- Autentykacja ---
-    if not ekran_autentykacji(cookie_mgr):
+    if not ekran_autentykacji():
         return
 
     # --- Firebase ---
@@ -523,11 +484,7 @@ def main():
 
         if st.button(t("logout", L), use_container_width=True):
             lang_backup = st.session_state.get("lang", "pl")
-            # Wyczyść ciastka
-            try:
-                _wyczysc_ciastka(cookie_mgr)
-            except Exception:
-                pass
+            # Wyczyść sesję
             for key in list(st.session_state.keys()): del st.session_state[key]
             st.session_state.lang = lang_backup
             st.rerun()
