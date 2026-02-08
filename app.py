@@ -17,6 +17,7 @@ from firebase_config import (
     pobierz_portfele, stworz_portfel, usun_portfel,
     pobierz_transakcje, dodaj_transakcje, usun_transakcje, zapisz_profil,
 )
+from ticker_db import TICKER_DATABASE, szukaj_tickery
 
 # =============================================================================
 # STAŁE
@@ -24,18 +25,7 @@ from firebase_config import (
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 LOGO_PATH = os.path.join(APP_DIR, "assets", "logo.jpg")
 
-CRYPTO_TICKERS = {
-    "Bitcoin (BTC)": "BTC-GBP", "Ethereum (ETH)": "ETH-GBP",
-    "BNB": "BNB-GBP", "XRP": "XRP-GBP", "Cardano (ADA)": "ADA-GBP",
-    "Solana (SOL)": "SOL-GBP", "Dogecoin (DOGE)": "DOGE-GBP",
-    "Polkadot (DOT)": "DOT-GBP", "Avalanche (AVAX)": "AVAX-GBP",
-    "Polygon (MATIC)": "POL-GBP",
-}
-
-MARKET_EXAMPLES = {
-    "🇺🇸 US": "np. AAPL, MSFT, TSLA", "🇵🇱 GPW": "np. CDR.WA, PKN.WA",
-    "🇬🇧 UK": "np. VOD.L, BARC.L", "🪙 Krypto": "np. BTC-GBP, ETH-GBP",
-}
+# Tickery — pełna baza w ticker_db.py
 
 PALETY_KOLOROW = {
     "Oceanic": ["#0077B6", "#00B4D8", "#90E0EF", "#CAF0F8", "#023E8A", "#03045E"],
@@ -358,15 +348,24 @@ def main():
         st.markdown("---")
         st.markdown("📝 **Dodaj Transakcję**")
 
-        with st.expander("📌 Przykłady tickerów"):
-            for rynek, ex in MARKET_EXAMPLES.items(): st.caption(f"{rynek}: {ex}")
+        # Wyszukiwarka tickerów — selectbox z wbudowanym filtrem
+        opcje_tickerow = ["🔍 Wpisz ręcznie..."] + list(TICKER_DATABASE.keys())
+        wybrany_ticker = st.selectbox(
+            "🎯 Ticker (wpisz aby szukać)",
+            opcje_tickerow,
+            index=0,
+            key="ticker_search",
+            help="Zacznij pisać nazwę spółki lub ticker — lista się przefiltruje"
+        )
 
-        with st.expander("🪙 Krypto Top 10"):
-            krypto_sel = st.selectbox("Kryptowaluta", ["--"] + list(CRYPTO_TICKERS.keys()), key="krypto_s")
+        # Jeśli wybrano z listy, pobierz ticker yfinance
+        if wybrany_ticker != "🔍 Wpisz ręcznie...":
+            ticker_z_bazy = TICKER_DATABASE.get(wybrany_ticker, "")
+        else:
+            ticker_z_bazy = ""
 
         with st.form("form_tx", clear_on_submit=True):
-            domyslny = CRYPTO_TICKERS.get(krypto_sel, "") if krypto_sel != "--" else ""
-            ticker_in = st.text_input("Ticker", value=domyslny, placeholder="np. AAPL")
+            ticker_in = st.text_input("Ticker", value=ticker_z_bazy, placeholder="np. AAPL, CDR.WA, BTC-GBP")
             typ = st.radio("Typ", ["Kupno", "Sprzedaż"], horizontal=True)
             ilosc = st.number_input("Ilość", min_value=0.0001, value=1.0, step=0.1, format="%.4f")
             cena = st.number_input("Cena zakupu (£)", min_value=0.01, value=100.0, step=0.01, format="%.2f")
