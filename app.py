@@ -84,6 +84,12 @@ def zastosuj_motyw(ciemny: bool, paleta_nazwa: str):
 # =============================================================================
 # WALIDACJA
 # =============================================================================
+def hex_to_rgba(hex_color: str, alpha: float = 1.0) -> str:
+    """Konwertuje hex (#RRGGBB) na rgba() format dla Plotly."""
+    hex_color = hex_color.lstrip('#')
+    r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
+
 def waliduj_ticker(ticker: str) -> str:
     oczyszczony = "".join(c for c in ticker.strip().upper() if c.isalnum() or c in ".-")
     return oczyszczony if 1 <= len(oczyszczony) <= 20 else ""
@@ -494,7 +500,7 @@ def main():
         hist_df = oblicz_historie_portfela(transakcje)
     if not hist_df.empty:
         fig_line = px.area(hist_df, x="Data", y="Wartość Portfela (£)", color_discrete_sequence=[paleta[0]])
-        fig_line.update_traces(fill="tozeroy", fillcolor=f"{paleta[0]}22", line=dict(width=2.5))
+        fig_line.update_traces(fill="tozeroy", fillcolor=hex_to_rgba(paleta[0], 0.13), line=dict(width=2.5))
         fig_line.update_layout(**layout_base, xaxis=dict(showgrid=False, title=""),
             yaxis=dict(showgrid=True, gridcolor="rgba(128,128,128,0.2)", title="£"))
         st.plotly_chart(fig_line, use_container_width=True)
