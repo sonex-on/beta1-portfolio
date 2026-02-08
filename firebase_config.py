@@ -151,6 +151,60 @@ def odswiez_token(refresh_token: str) -> dict:
     except requests.exceptions.RequestException as e:
         return {"error": f"Błąd połączenia: {str(e)[:100]}"}
 
+def wyslij_weryfikacje_email(id_token: str) -> dict:
+    """
+    Wysyła email weryfikacyjny do użytkownika (Firebase REST API).
+    Wymaga idToken z logowania/rejestracji.
+    """
+    api_key = pobierz_api_key()
+    url = f"https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key={api_key}"
+    payload = {"requestType": "VERIFY_EMAIL", "idToken": id_token}
+
+    try:
+        resp = requests.post(url, json=payload, timeout=10)
+        data = resp.json()
+        if "error" in data:
+            return {"error": data["error"].get("message", "Verification failed")}
+        return {"success": True, "email": data.get("email", "")}
+    except requests.exceptions.RequestException as e:
+        return {"error": f"Błąd połączenia: {str(e)[:100]}"}
+
+def sprawdz_weryfikacje(id_token: str) -> bool:
+    """
+    Sprawdza czy email użytkownika został zweryfikowany.
+    Zwraca True jeśli emailVerified == True.
+    """
+    api_key = pobierz_api_key()
+    url = f"https://identitytoolkit.googleapis.com/v1/accounts:lookup?key={api_key}"
+    payload = {"idToken": id_token}
+
+    try:
+        resp = requests.post(url, json=payload, timeout=10)
+        data = resp.json()
+        users = data.get("users", [])
+        if users:
+            return users[0].get("emailVerified", False)
+        return False
+    except Exception:
+        return False
+
+def wyslij_reset_hasla(email: str) -> dict:
+    """
+    Wysyła email z linkiem do resetowania hasła (Firebase REST API).
+    """
+    api_key = pobierz_api_key()
+    url = f"https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key={api_key}"
+    payload = {"requestType": "PASSWORD_RESET", "email": email}
+
+    try:
+        resp = requests.post(url, json=payload, timeout=10)
+        data = resp.json()
+        if "error" in data:
+            return {"error": data["error"].get("message", "Reset failed")}
+        return {"success": True}
+    except requests.exceptions.RequestException as e:
+        return {"error": f"Błąd połączenia: {str(e)[:100]}"}
+
 # =============================================================================
 # FIRESTORE — CRUD PORTFELI I TRANSAKCJI
 # =============================================================================

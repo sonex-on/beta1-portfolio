@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =============================================
+    // BEZPIECZEŃSTWO: Każdy user widzi TYLKO swoje dane
+    // =============================================
+
+    // Profil użytkownika — tylko właściciel
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      // Portfele — tylko właściciel
+      match /portfolios/{portfolioId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+
+        // Transakcje — tylko właściciel
+        match /transactions/{transactionId} {
+          allow read, write: if request.auth != null && request.auth.uid == userId;
+        }
+      }
+    }
+
+    // Blokada prób logowania — tylko odczyt (zapis tylko przez admin SDK)
+    match /login_attempts/{email} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    // Domyślnie: odmów dostępu do wszystkiego
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

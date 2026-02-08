@@ -80,6 +80,20 @@ TRANSLATIONS = {
         "roi_ylabel": "Stopa zwrotu (%)",
         "your_portfolio": "Twój Portfel",
         "daily_volatility": "📉 Zmienność Dzienna",
+
+        # --- Security ---
+        "captcha_label": "🧩 Weryfikacja",
+        "captcha_placeholder": "Wpisz odpowiedź",
+        "captcha_wrong": "❌ Nieprawidłowa odpowiedź. Spróbuj ponownie.",
+        "account_locked": "🔒 Konto zablokowane po 5 nieudanych próbach.",
+        "reset_password": "📧 Wyślij reset hasła",
+        "reset_sent": "✅ Link do resetowania hasła wysłany na",
+        "verify_email": "📨 Sprawdź swoją skrzynkę — kliknij link weryfikacyjny!",
+        "email_not_verified": "⚠️ Email nie został zweryfikowany. Sprawdź skrzynkę.",
+        "resend_verification": "🔄 Wyślij ponownie",
+        "verification_sent": "✅ Link weryfikacyjny wysłany ponownie!",
+        "invalid_email_format": "❌ Nieprawidłowy format email.",
+        "attempts_left": "Pozostałe próby",
     },
 
     "en": {
@@ -159,6 +173,20 @@ TRANSLATIONS = {
         "roi_ylabel": "Return (%)",
         "your_portfolio": "Your Portfolio",
         "daily_volatility": "📉 Daily Volatility",
+
+        # --- Security ---
+        "captcha_label": "🧩 Verification",
+        "captcha_placeholder": "Type answer",
+        "captcha_wrong": "❌ Wrong answer. Try again.",
+        "account_locked": "🔒 Account locked after 5 failed attempts.",
+        "reset_password": "📧 Send password reset",
+        "reset_sent": "✅ Password reset link sent to",
+        "verify_email": "📨 Check your inbox — click the verification link!",
+        "email_not_verified": "⚠️ Email not verified. Check your inbox.",
+        "resend_verification": "🔄 Resend verification",
+        "verification_sent": "✅ Verification link resent!",
+        "invalid_email_format": "❌ Invalid email format.",
+        "attempts_left": "Attempts remaining",
     },
 }
 

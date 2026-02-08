@@ -16,10 +16,12 @@ from firebase_config import (
     inicjalizuj_firebase, zarejestruj_uzytkownika, zaloguj_uzytkownika,
     pobierz_portfele, stworz_portfel, usun_portfel,
     pobierz_transakcje, dodaj_transakcje, usun_transakcje, zapisz_profil,
-    odswiez_token,
+    odswiez_token, wyslij_weryfikacje_email, sprawdz_weryfikacje, wyslij_reset_hasla,
 )
 from ticker_db import TICKER_DATABASE, szukaj_tickery
 from translations import t
+import re
+import random
 
 # =============================================================================
 # STAŁE
@@ -101,6 +103,39 @@ def waliduj_liczbe(wartosc, min_val=0.0001) -> float:
         return w if w >= min_val else 0.0
     except (ValueError, TypeError):
         return 0.0
+
+# --- SANITIZATION & VALIDATION ---
+_EMAIL_RE = re.compile(r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$')
+_DANGER_PATTERNS = re.compile(r'<[^>]*>|javascript:|on\w+=|\'|\"--|\/\*|\*\/|;\s*(DROP|DELETE|INSERT|UPDATE|ALTER|EXEC)', re.IGNORECASE)
+
+def sanitize_input(text: str, max_len: int = 200) -> str:
+    """Czyści input: usuwa HTML tagi, niebezpieczne wzorce, ogranicza długość."""
+    if not isinstance(text, str):
+        return ""
+    text = text.strip()[:max_len]
+    text = _DANGER_PATTERNS.sub('', text)
+    return text
+
+def validate_email(email: str) -> bool:
+    """Sprawdza poprawność formatu email."""
+    return bool(_EMAIL_RE.match(email.strip())) if email else False
+
+def _generate_captcha():
+    """Generuje prostą zagadkę matematyczną."""
+    a = random.randint(1, 20)
+    b = random.randint(1, 20)
+    op = random.choice(['+', '-', '×'])
+    if op == '+':
+        answer = a + b
+    elif op == '-':
+        a, b = max(a, b), min(a, b)  # wynik zawsze >= 0
+        answer = a - b
+    else:
+        a, b = random.randint(1, 10), random.randint(1, 10)
+        answer = a * b
+    return f"{a} {op} {b} = ?", answer
+
+MAX_LOGIN_ATTEMPTS = 5
 
 # =============================================================================
 # YFINANCE — Pobieranie danych (Agent 2)
@@ -267,6 +302,14 @@ def ekran_autentykacji():
     # Język — inicjalizacja
     if "lang" not in st.session_state:
         st.session_state.lang = "pl"
+    # Rate limiting state
+    if "_login_attempts" not in st.session_state:
+        st.session_state._login_attempts = {}  # {email: count}
+    # CAPTCHA state
+    if "_captcha_q" not in st.session_state:
+        q, a = _generate_captcha()
+        st.session_state._captcha_q = q
+        st.session_state._captcha_a = a
 
     # --- Próba automatycznego przywracania sesji z ciastek ---
     cookie_mgr = _get_cookie_manager()
@@ -283,7 +326,6 @@ def ekran_autentykacji():
                 st.session_state.uid = wynik["uid"]
                 st.session_state.email = saved_email or wynik.get("email", "")
                 st.session_state.id_token = wynik["id_token"]
-                # Zaktualizuj refresh token w ciastku
                 _zapisz_ciastka(cookie_mgr, wynik["uid"],
                     st.session_state.email, wynik["refresh_token"])
                 st.rerun()
@@ -315,6 +357,11 @@ def ekran_autentykacji():
     # Tryb — radio
     tryb = st.radio(t("auth_select", L), [t("auth_login", L), t("auth_register", L)], horizontal=True, label_visibility="collapsed")
 
+    # --- CAPTCHA ---
+    st.markdown(f'**{t("captcha_label", L)}:** `{st.session_state._captcha_q}`')
+    captcha_answer = st.text_input(t("captcha_placeholder", L), key="captcha_input", max_chars=6)
+
+    # === LOGOWANIE ===
     if tryb == t("auth_login", L):
         with st.form("login_form"):
             email = st.text_input(t("email", L), placeholder="your@email.com")
@@ -323,24 +370,84 @@ def ekran_autentykacji():
             zaloguj = st.form_submit_button(t("login_btn", L), use_container_width=True)
 
             if zaloguj:
-                if not email or not haslo:
-                    st.error(t("fill_all", L))
-                else:
-                    with st.spinner(t("logging_in", L)):
-                        wynik = zaloguj_uzytkownika(email.strip(), haslo)
-                    if wynik.get("error"):
-                        st.error(f"❌ {wynik['error']}")
-                    else:
-                        st.session_state.zalogowany = True
-                        st.session_state.uid = wynik["uid"]
-                        st.session_state.email = wynik["email"]
-                        st.session_state.id_token = wynik["id_token"]
-                        # Zapisz w ciastkach
-                        _zapisz_ciastka(cookie_mgr, wynik["uid"],
-                            wynik["email"], wynik.get("refresh_token", ""))
-                        st.success(t("logged_in", L))
-                        st.rerun()
+                email_clean = sanitize_input(email.strip().lower(), 100)
 
+                # CAPTCHA check
+                try:
+                    if int(captcha_answer) != st.session_state._captcha_a:
+                        st.error(t("captcha_wrong", L))
+                        q, a = _generate_captcha()
+                        st.session_state._captcha_q, st.session_state._captcha_a = q, a
+                        st.stop()
+                except (ValueError, TypeError):
+                    st.error(t("captcha_wrong", L))
+                    st.stop()
+
+                # Email format
+                if not validate_email(email_clean):
+                    st.error(t("invalid_email_format", L)); st.stop()
+
+                if not email_clean or not haslo:
+                    st.error(t("fill_all", L)); st.stop()
+
+                # Rate limiting check
+                attempts = st.session_state._login_attempts.get(email_clean, 0)
+                if attempts >= MAX_LOGIN_ATTEMPTS:
+                    st.error(t("account_locked", L))
+                    # Show password reset button
+                    st.stop()
+
+                with st.spinner(t("logging_in", L)):
+                    wynik = zaloguj_uzytkownika(email_clean, haslo)
+
+                if wynik.get("error"):
+                    # Increment attempts
+                    st.session_state._login_attempts[email_clean] = attempts + 1
+                    remaining = MAX_LOGIN_ATTEMPTS - attempts - 1
+                    if remaining > 0:
+                        st.error(f"❌ {wynik['error']} ({t('attempts_left', L)}: {remaining})")
+                    else:
+                        st.error(t("account_locked", L))
+                    # Regenerate CAPTCHA
+                    q, a = _generate_captcha()
+                    st.session_state._captcha_q, st.session_state._captcha_a = q, a
+                else:
+                    # Check email verification
+                    if not sprawdz_weryfikacje(wynik["id_token"]):
+                        st.warning(t("email_not_verified", L))
+                        # Offer resend
+                        st.session_state._unverified_token = wynik["id_token"]
+                        st.stop()
+
+                    # Success!
+                    st.session_state._login_attempts[email_clean] = 0
+                    st.session_state.zalogowany = True
+                    st.session_state.uid = wynik["uid"]
+                    st.session_state.email = wynik["email"]
+                    st.session_state.id_token = wynik["id_token"]
+                    _zapisz_ciastka(cookie_mgr, wynik["uid"],
+                        wynik["email"], wynik.get("refresh_token", ""))
+                    st.success(t("logged_in", L))
+                    st.rerun()
+
+        # Password reset button (outside form)
+        locked_emails = [e for e, c in st.session_state._login_attempts.items() if c >= MAX_LOGIN_ATTEMPTS]
+        if locked_emails:
+            st.markdown("---")
+            reset_email = st.text_input("📧 Email", value=locked_emails[0], key="reset_email")
+            if st.button(t("reset_password", L), key="btn_reset"):
+                if validate_email(reset_email):
+                    wyslij_reset_hasla(reset_email)
+                    st.success(f"{t('reset_sent', L)} {reset_email}")
+                    st.session_state._login_attempts[reset_email] = 0
+
+        # Resend verification button
+        if st.session_state.get("_unverified_token"):
+            if st.button(t("resend_verification", L), key="btn_resend"):
+                wyslij_weryfikacje_email(st.session_state._unverified_token)
+                st.success(t("verification_sent", L))
+
+    # === REJESTRACJA ===
     else:
         with st.form("register_form"):
             reg_email = st.text_input(t("email", L), placeholder="your@email.com")
@@ -349,7 +456,23 @@ def ekran_autentykacji():
             zarejestruj = st.form_submit_button(t("register_btn", L), use_container_width=True)
 
             if zarejestruj:
-                if not reg_email or not reg_haslo:
+                reg_email_clean = sanitize_input(reg_email.strip().lower(), 100)
+
+                # CAPTCHA check
+                try:
+                    if int(captcha_answer) != st.session_state._captcha_a:
+                        st.error(t("captcha_wrong", L))
+                        q, a = _generate_captcha()
+                        st.session_state._captcha_q, st.session_state._captcha_a = q, a
+                        st.stop()
+                except (ValueError, TypeError):
+                    st.error(t("captcha_wrong", L))
+                    st.stop()
+
+                # Validations
+                if not validate_email(reg_email_clean):
+                    st.error(t("invalid_email_format", L)); st.stop()
+                if not reg_email_clean or not reg_haslo:
                     st.error(t("fill_all", L))
                 elif reg_haslo != reg_haslo2:
                     st.error(t("passwords_mismatch", L))
@@ -357,21 +480,19 @@ def ekran_autentykacji():
                     st.error(t("password_too_short", L))
                 else:
                     with st.spinner(t("registering", L)):
-                        wynik = zarejestruj_uzytkownika(reg_email.strip(), reg_haslo)
+                        wynik = zarejestruj_uzytkownika(reg_email_clean, reg_haslo)
                     if wynik.get("error"):
                         st.error(f"❌ {wynik['error']}")
                     else:
                         db = inicjalizuj_firebase()
                         zapisz_profil(db, wynik["uid"], wynik["email"])
-                        st.session_state.zalogowany = True
-                        st.session_state.uid = wynik["uid"]
-                        st.session_state.email = wynik["email"]
-                        st.session_state.id_token = wynik["id_token"]
-                        # Zapisz w ciastkach
-                        _zapisz_ciastka(cookie_mgr, wynik["uid"],
-                            wynik["email"], wynik.get("refresh_token", ""))
-                        st.success(t("account_created", L))
-                        st.rerun()
+                        # Send email verification
+                        wyslij_weryfikacje_email(wynik["id_token"])
+                        st.success(t("verify_email", L))
+                        # Do NOT auto-login — require email verification first
+                        # Regenerate CAPTCHA
+                        q, a = _generate_captcha()
+                        st.session_state._captcha_q, st.session_state._captcha_a = q, a
     return False
 
 # =============================================================================
@@ -461,10 +582,11 @@ def main():
             nowa_nazwa = st.text_input(t("new_portfolio", L), placeholder=t("name_placeholder", L), label_visibility="collapsed")
         with col_np2:
             if st.button("➕", key="btn_nowy_portfel"):
-                if nowa_nazwa.strip():
-                    wyn = stworz_portfel(db, uid, nowa_nazwa.strip())
+                nazwa_clean = sanitize_input(nowa_nazwa.strip(), 50)
+                if nazwa_clean:
+                    wyn = stworz_portfel(db, uid, nazwa_clean)
                     if wyn.get("error"): st.error(wyn["error"])
-                    else: st.success(f"✅ '{nowa_nazwa}' {t('portfolio_created', L)}"); st.rerun()
+                    else: st.success(f"✅ '{nazwa_clean}' {t('portfolio_created', L)}"); st.rerun()
 
         if len(portfele) > 1:
             if st.button(t("delete_portfolio", L), key="btn_usun_portfel"):
