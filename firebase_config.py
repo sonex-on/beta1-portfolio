@@ -128,6 +128,29 @@ def zaloguj_uzytkownika(email: str, haslo: str) -> dict:
     except requests.exceptions.RequestException as e:
         return {"error": f"Błąd połączenia: {str(e)[:100]}"}
 
+def odswiez_token(refresh_token: str) -> dict:
+    """
+    Odświeża id_token za pomocą refresh_token (Firebase REST API).
+    Pozwala utrzymać sesję bez ponownego logowania.
+    """
+    api_key = pobierz_api_key()
+    url = f"https://securetoken.googleapis.com/v1/token?key={api_key}"
+    payload = {"grant_type": "refresh_token", "refresh_token": refresh_token}
+
+    try:
+        resp = requests.post(url, data=payload, timeout=10)
+        data = resp.json()
+        if "error" in data:
+            return {"error": data["error"].get("message", "Token refresh failed")}
+        return {
+            "uid": data["user_id"],
+            "id_token": data["id_token"],
+            "refresh_token": data["refresh_token"],
+            "email": "",  # Not returned by refresh endpoint
+        }
+    except requests.exceptions.RequestException as e:
+        return {"error": f"Błąd połączenia: {str(e)[:100]}"}
+
 # =============================================================================
 # FIRESTORE — CRUD PORTFELI I TRANSAKCJI
 # =============================================================================

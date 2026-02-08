@@ -16,6 +16,7 @@ from firebase_config import (
     inicjalizuj_firebase, zarejestruj_uzytkownika, zaloguj_uzytkownika,
     pobierz_portfele, stworz_portfel, usun_portfel,
     pobierz_transakcje, dodaj_transakcje, usun_transakcje, zapisz_profil,
+    odswiez_token,
 )
 from ticker_db import TICKER_DATABASE, szukaj_tickery
 from translations import t
@@ -238,6 +239,23 @@ def oblicz_roi_portfela(transakcje: list) -> pd.DataFrame:
         wyniki.append({"Data": data_idx, "ROI (%)": round(roi, 2), "Wartość ($)": round(wartosc_rynkowa, 2), "Kapitał ($)": round(kapital_zainwestowany, 2)})
     return pd.DataFrame(wyniki)
 
+def _get_cookie_manager():
+    """Zwraca instancję CookieManager (singleton per session)."""
+    import extra_streamlit_components as stx
+    return stx.CookieManager(key="pi_cookies")
+
+def _zapisz_ciastka(cookie_mgr, uid, email, refresh_token):
+    """Zapisuje dane sesji w ciastkach przeglądarki."""
+    cookie_mgr.set("pi_uid", uid)
+    cookie_mgr.set("pi_email", email)
+    cookie_mgr.set("pi_refresh", refresh_token)
+
+def _wyczysc_ciastka(cookie_mgr):
+    """Czyści ciastka sesji."""
+    cookie_mgr.delete("pi_uid")
+    cookie_mgr.delete("pi_email")
+    cookie_mgr.delete("pi_refresh")
+
 # =============================================================================
 # EKRAN LOGOWANIA / REJESTRACJI
 # =============================================================================
@@ -249,6 +267,26 @@ def ekran_autentykacji():
     # Język — inicjalizacja
     if "lang" not in st.session_state:
         st.session_state.lang = "pl"
+
+    # --- Próba automatycznego przywracania sesji z ciastek ---
+    cookie_mgr = _get_cookie_manager()
+    cookies = cookie_mgr.get_all()
+    if cookies:
+        saved_uid = cookies.get("pi_uid")
+        saved_email = cookies.get("pi_email")
+        saved_refresh = cookies.get("pi_refresh")
+        if saved_uid and saved_refresh and not st.session_state.get("_tried_restore"):
+            st.session_state._tried_restore = True
+            wynik = odswiez_token(saved_refresh)
+            if not wynik.get("error"):
+                st.session_state.zalogowany = True
+                st.session_state.uid = wynik["uid"]
+                st.session_state.email = saved_email or wynik.get("email", "")
+                st.session_state.id_token = wynik["id_token"]
+                # Zaktualizuj refresh token w ciastku
+                _zapisz_ciastka(cookie_mgr, wynik["uid"],
+                    st.session_state.email, wynik["refresh_token"])
+                st.rerun()
 
     zastosuj_motyw(True, "Oceanic")
 
@@ -297,6 +335,9 @@ def ekran_autentykacji():
                         st.session_state.uid = wynik["uid"]
                         st.session_state.email = wynik["email"]
                         st.session_state.id_token = wynik["id_token"]
+                        # Zapisz w ciastkach
+                        _zapisz_ciastka(cookie_mgr, wynik["uid"],
+                            wynik["email"], wynik.get("refresh_token", ""))
                         st.success(t("logged_in", L))
                         st.rerun()
 
@@ -326,6 +367,9 @@ def ekran_autentykacji():
                         st.session_state.uid = wynik["uid"]
                         st.session_state.email = wynik["email"]
                         st.session_state.id_token = wynik["id_token"]
+                        # Zapisz w ciastkach
+                        _zapisz_ciastka(cookie_mgr, wynik["uid"],
+                            wynik["email"], wynik.get("refresh_token", ""))
                         st.success(t("account_created", L))
                         st.rerun()
     return False
@@ -363,6 +407,12 @@ def main():
 
         if st.button(t("logout", L), use_container_width=True):
             lang_backup = st.session_state.get("lang", "pl")
+            # Wyczyść ciastka
+            try:
+                cm = _get_cookie_manager()
+                _wyczysc_ciastka(cm)
+            except Exception:
+                pass
             for key in list(st.session_state.keys()): del st.session_state[key]
             st.session_state.lang = lang_backup
             st.rerun()
