@@ -274,9 +274,8 @@ def oblicz_roi_portfela(transakcje: list) -> pd.DataFrame:
         wyniki.append({"Data": data_idx, "ROI (%)": round(roi, 2), "Wartość ($)": round(wartosc_rynkowa, 2), "Kapitał ($)": round(kapital_zainwestowany, 2)})
     return pd.DataFrame(wyniki)
 
-@st.cache_resource
 def _get_cookie_manager():
-    """Zwraca instancję CookieManager (singleton)."""
+    """Zwraca instancję CookieManager."""
     import extra_streamlit_components as stx
     return stx.CookieManager(key="pi_cookies")
 
@@ -295,7 +294,7 @@ def _wyczysc_ciastka(cookie_mgr):
 # =============================================================================
 # EKRAN LOGOWANIA / REJESTRACJI
 # =============================================================================
-def ekran_autentykacji():
+def ekran_autentykacji(cookie_mgr):
     """Wyświetla formularz logowania lub rejestracji. Zwraca True jeśli zalogowany."""
     if st.session_state.get("zalogowany"):
         return True
@@ -313,7 +312,6 @@ def ekran_autentykacji():
         st.session_state._captcha_a = a
 
     # --- Próba automatycznego przywracania sesji z ciastek ---
-    cookie_mgr = _get_cookie_manager()
     cookies = cookie_mgr.get_all()
     if cookies:
         saved_uid = cookies.get("pi_uid")
@@ -496,8 +494,11 @@ def main():
     st.set_page_config(page_title="Portfel inwestycyjny", page_icon="📊",
                        layout="wide", initial_sidebar_state="expanded")
 
+    # --- CookieManager (jedna instancja) ---
+    cookie_mgr = _get_cookie_manager()
+
     # --- Autentykacja ---
-    if not ekran_autentykacji():
+    if not ekran_autentykacji(cookie_mgr):
         return
 
     # --- Firebase ---
@@ -524,8 +525,7 @@ def main():
             lang_backup = st.session_state.get("lang", "pl")
             # Wyczyść ciastka
             try:
-                cm = _get_cookie_manager()
-                _wyczysc_ciastka(cm)
+                _wyczysc_ciastka(cookie_mgr)
             except Exception:
                 pass
             for key in list(st.session_state.keys()): del st.session_state[key]
