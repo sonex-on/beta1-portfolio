@@ -1,0 +1,168 @@
+# =============================================================================
+# translations.py — Tłumaczenia PL/EN dla beta1 Portfolio Tracker
+# =============================================================================
+
+TRANSLATIONS = {
+    "pl": {
+        # --- Auth Screen ---
+        "auth_subtitle": "Portfolio Tracker — Zaloguj się",
+        "auth_select": "Wybierz akcję",
+        "auth_login": "🔑 Logowanie",
+        "auth_register": "📝 Rejestracja",
+        "email": "Email",
+        "password": "Hasło",
+        "password_min": "Hasło (min. 6 znaków)",
+        "password_repeat": "Powtórz hasło",
+        "remember_me": "🔒 Zapamiętaj mnie",
+        "login_btn": "Zaloguj się",
+        "register_btn": "Zarejestruj się",
+        "fill_all": "Wypełnij wszystkie pola!",
+        "logging_in": "Logowanie...",
+        "registering": "Rejestracja...",
+        "logged_in": "✅ Zalogowano!",
+        "account_created": "✅ Konto utworzone! Witaj w beta1!",
+        "passwords_mismatch": "Hasła nie są identyczne!",
+        "password_too_short": "Hasło musi mieć min. 6 znaków!",
+        "language": "🌐 Język",
+
+        # --- Sidebar ---
+        "logout": "🚪 Wyloguj",
+        "dark_mode": "🌙 Tryb Ciemny",
+        "palette": "🎨 Paleta",
+        "portfolios": "📁 **Portfele** (max 3)",
+        "active_portfolio": "Aktywny portfel",
+        "new_portfolio": "Nowy portfel",
+        "name_placeholder": "Nazwa",
+        "delete_portfolio": "🗑️ Usuń aktywny portfel",
+        "portfolio_created": "utworzony!",
+        "add_transaction": "📝 **Dodaj Transakcję**",
+        "ticker_search": "🎯 Ticker (wpisz aby szukać)",
+        "ticker_search_help": "Zacznij pisać nazwę spółki lub ticker — lista się przefiltruje",
+        "type_manually": "🔍 Wpisz ręcznie...",
+        "ticker": "Ticker",
+        "type": "Typ",
+        "buy": "Kupno",
+        "sell": "Sprzedaż",
+        "quantity": "Ilość",
+        "purchase_price": "Cena zakupu ($)",
+        "date": "Data",
+        "add_btn": "➕ Dodaj",
+        "invalid_ticker": "❌ Nieprawidłowy ticker.",
+        "quantity_gt0": "❌ Ilość > 0!",
+        "price_gt0": "❌ Cena > 0!",
+        "only_have": "❌ Masz tylko",
+        "transactions": "🗂️ **Transakcje**",
+        "no_transactions": "Brak transakcji. Dodaj pierwszą! ☝️",
+
+        # --- Dashboard ---
+        "app_subtitle": "Dane z opóźnieniem ~15 min | Waluta: USD ($)",
+        "create_portfolio": "Utwórz portfel w panelu bocznym.",
+        "welcome": "### 👋 Witaj! Dodaj transakcję w panelu bocznym.",
+        "fetching_data": "📡 Pobieram dane rynkowe...",
+        "no_positions": "⚠️ Brak aktywnych pozycji.",
+
+        # --- Metric Cards ---
+        "portfolio_value": "Wartość Portfela",
+        "invested": "Zainwestowano",
+        "profit_loss": "Zysk / Strata",
+        "today_change": "Zmiana Dzisiaj",
+        "biggest_loss": "Największa Strata",
+        "best_position": "Najlepsza Pozycja",
+
+        # --- Sections ---
+        "summary": "📋 Podsumowanie",
+        "allocation": "🥧 Alokacja",
+        "profit_loss_chart": "📉 Zysk/Strata",
+        "value_over_time": "📈 Wartość w Czasie",
+        "generating_history": "📊 Generuję historię...",
+        "roi_title": "📈 Zwrot z Kapitału (%)",
+        "calculating_roi": "📊 Obliczam stopę zwrotu...",
+        "roi_ylabel": "Stopa zwrotu (%)",
+        "your_portfolio": "Twój Portfel",
+        "daily_volatility": "📉 Zmienność Dzienna",
+    },
+
+    "en": {
+        # --- Auth Screen ---
+        "auth_subtitle": "Portfolio Tracker — Sign In",
+        "auth_select": "Choose action",
+        "auth_login": "🔑 Login",
+        "auth_register": "📝 Register",
+        "email": "Email",
+        "password": "Password",
+        "password_min": "Password (min. 6 characters)",
+        "password_repeat": "Repeat password",
+        "remember_me": "🔒 Remember me",
+        "login_btn": "Sign in",
+        "register_btn": "Create account",
+        "fill_all": "Please fill all fields!",
+        "logging_in": "Signing in...",
+        "registering": "Creating account...",
+        "logged_in": "✅ Signed in!",
+        "account_created": "✅ Account created! Welcome to beta1!",
+        "passwords_mismatch": "Passwords do not match!",
+        "password_too_short": "Password must be at least 6 characters!",
+        "language": "🌐 Language",
+
+        # --- Sidebar ---
+        "logout": "🚪 Sign out",
+        "dark_mode": "🌙 Dark Mode",
+        "palette": "🎨 Palette",
+        "portfolios": "📁 **Portfolios** (max 3)",
+        "active_portfolio": "Active portfolio",
+        "new_portfolio": "New portfolio",
+        "name_placeholder": "Name",
+        "delete_portfolio": "🗑️ Delete active portfolio",
+        "portfolio_created": "created!",
+        "add_transaction": "📝 **Add Transaction**",
+        "ticker_search": "🎯 Ticker (type to search)",
+        "ticker_search_help": "Start typing a company name or ticker — the list will filter",
+        "type_manually": "🔍 Type manually...",
+        "ticker": "Ticker",
+        "type": "Type",
+        "buy": "Buy",
+        "sell": "Sell",
+        "quantity": "Quantity",
+        "purchase_price": "Purchase price ($)",
+        "date": "Date",
+        "add_btn": "➕ Add",
+        "invalid_ticker": "❌ Invalid ticker.",
+        "quantity_gt0": "❌ Quantity must be > 0!",
+        "price_gt0": "❌ Price must be > 0!",
+        "only_have": "❌ You only have",
+        "transactions": "🗂️ **Transactions**",
+        "no_transactions": "No transactions yet. Add your first one! ☝️",
+
+        # --- Dashboard ---
+        "app_subtitle": "Data delayed ~15 min | Currency: USD ($)",
+        "create_portfolio": "Create a portfolio in the sidebar.",
+        "welcome": "### 👋 Welcome! Add a transaction in the sidebar.",
+        "fetching_data": "📡 Fetching market data...",
+        "no_positions": "⚠️ No active positions.",
+
+        # --- Metric Cards ---
+        "portfolio_value": "Portfolio Value",
+        "invested": "Invested",
+        "profit_loss": "Profit / Loss",
+        "today_change": "Today's Change",
+        "biggest_loss": "Biggest Loss",
+        "best_position": "Best Position",
+
+        # --- Sections ---
+        "summary": "📋 Summary",
+        "allocation": "🥧 Allocation",
+        "profit_loss_chart": "📉 Profit/Loss",
+        "value_over_time": "📈 Value Over Time",
+        "generating_history": "📊 Generating history...",
+        "roi_title": "📈 Return on Capital (%)",
+        "calculating_roi": "📊 Calculating return...",
+        "roi_ylabel": "Return (%)",
+        "your_portfolio": "Your Portfolio",
+        "daily_volatility": "📉 Daily Volatility",
+    },
+}
+
+
+def t(key: str, lang: str = "pl") -> str:
+    """Pobierz tłumaczenie dla klucza w danym języku."""
+    return TRANSLATIONS.get(lang, TRANSLATIONS["pl"]).get(key, key)

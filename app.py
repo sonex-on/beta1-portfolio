@@ -18,6 +18,7 @@ from firebase_config import (
     pobierz_transakcje, dodaj_transakcje, usun_transakcje, zapisz_profil,
 )
 from ticker_db import TICKER_DATABASE, szukaj_tickery
+from translations import t
 
 # =============================================================================
 # STAŁE
@@ -245,6 +246,10 @@ def ekran_autentykacji():
     if st.session_state.get("zalogowany"):
         return True
 
+    # Język — inicjalizacja
+    if "lang" not in st.session_state:
+        st.session_state.lang = "pl"
+
     zastosuj_motyw(True, "Oceanic")
 
     # Logo — centrowane
@@ -254,23 +259,36 @@ def ekran_autentykacji():
             st.image(LOGO_PATH, width=120)
 
     st.markdown('<p class="app-title">beta1</p>', unsafe_allow_html=True)
-    st.markdown('<p class="app-subtitle">Portfolio Tracker — Zaloguj się</p>', unsafe_allow_html=True)
 
-    # Tryb — radio zamiast tabs (stabilniejsze na Streamlit Cloud)
-    tryb = st.radio("Wybierz akcję", ["🔑 Logowanie", "📝 Rejestracja"], horizontal=True, label_visibility="collapsed")
+    L = st.session_state.lang
+    st.markdown(f'<p class="app-subtitle">{t("auth_subtitle", L)}</p>', unsafe_allow_html=True)
 
-    if tryb == "🔑 Logowanie":
+    # Wybór języka
+    lang_options = {"🇵🇱 Polski": "pl", "🇬🇧 English": "en"}
+    lang_labels = list(lang_options.keys())
+    current_idx = list(lang_options.values()).index(L) if L in lang_options.values() else 0
+    wybrany_jezyk = st.radio(t("language", L), lang_labels, index=current_idx, horizontal=True)
+    new_lang = lang_options[wybrany_jezyk]
+    if new_lang != st.session_state.lang:
+        st.session_state.lang = new_lang
+        st.rerun()
+    L = st.session_state.lang
+
+    # Tryb — radio
+    tryb = st.radio(t("auth_select", L), [t("auth_login", L), t("auth_register", L)], horizontal=True, label_visibility="collapsed")
+
+    if tryb == t("auth_login", L):
         with st.form("login_form"):
-            email = st.text_input("Email", placeholder="twoj@email.com")
-            haslo = st.text_input("Hasło", type="password")
-            zapamietaj = st.checkbox("🔒 Zapamiętaj mnie")
-            zaloguj = st.form_submit_button("Zaloguj się", use_container_width=True)
+            email = st.text_input(t("email", L), placeholder="your@email.com")
+            haslo = st.text_input(t("password", L), type="password")
+            zapamietaj = st.checkbox(t("remember_me", L))
+            zaloguj = st.form_submit_button(t("login_btn", L), use_container_width=True)
 
             if zaloguj:
                 if not email or not haslo:
-                    st.error("Wypełnij wszystkie pola!")
+                    st.error(t("fill_all", L))
                 else:
-                    with st.spinner("Logowanie..."):
+                    with st.spinner(t("logging_in", L)):
                         wynik = zaloguj_uzytkownika(email.strip(), haslo)
                     if wynik.get("error"):
                         st.error(f"❌ {wynik['error']}")
@@ -279,37 +297,36 @@ def ekran_autentykacji():
                         st.session_state.uid = wynik["uid"]
                         st.session_state.email = wynik["email"]
                         st.session_state.id_token = wynik["id_token"]
-                        st.success("✅ Zalogowano!")
+                        st.success(t("logged_in", L))
                         st.rerun()
 
     else:
         with st.form("register_form"):
-            reg_email = st.text_input("Email", placeholder="twoj@email.com")
-            reg_haslo = st.text_input("Hasło (min. 6 znaków)", type="password")
-            reg_haslo2 = st.text_input("Powtórz hasło", type="password")
-            zarejestruj = st.form_submit_button("Zarejestruj się", use_container_width=True)
+            reg_email = st.text_input(t("email", L), placeholder="your@email.com")
+            reg_haslo = st.text_input(t("password_min", L), type="password")
+            reg_haslo2 = st.text_input(t("password_repeat", L), type="password")
+            zarejestruj = st.form_submit_button(t("register_btn", L), use_container_width=True)
 
             if zarejestruj:
                 if not reg_email or not reg_haslo:
-                    st.error("Wypełnij wszystkie pola!")
+                    st.error(t("fill_all", L))
                 elif reg_haslo != reg_haslo2:
-                    st.error("Hasła nie są identyczne!")
+                    st.error(t("passwords_mismatch", L))
                 elif len(reg_haslo) < 6:
-                    st.error("Hasło musi mieć min. 6 znaków!")
+                    st.error(t("password_too_short", L))
                 else:
-                    with st.spinner("Rejestracja..."):
+                    with st.spinner(t("registering", L)):
                         wynik = zarejestruj_uzytkownika(reg_email.strip(), reg_haslo)
                     if wynik.get("error"):
                         st.error(f"❌ {wynik['error']}")
                     else:
-                        # Zapisz profil w Firestore
                         db = inicjalizuj_firebase()
                         zapisz_profil(db, wynik["uid"], wynik["email"])
                         st.session_state.zalogowany = True
                         st.session_state.uid = wynik["uid"]
                         st.session_state.email = wynik["email"]
                         st.session_state.id_token = wynik["id_token"]
-                        st.success("✅ Konto utworzone! Witaj w beta1!")
+                        st.success(t("account_created", L))
                         st.rerun()
     return False
 
@@ -332,6 +349,8 @@ def main():
     if "motyw_ciemny" not in st.session_state: st.session_state.motyw_ciemny = True
     if "paleta" not in st.session_state: st.session_state.paleta = "Oceanic"
     if "aktywny_portfel" not in st.session_state: st.session_state.aktywny_portfel = None
+    if "lang" not in st.session_state: st.session_state.lang = "pl"
+    L = st.session_state.lang
 
     # =========================================================================
     # SIDEBAR
@@ -342,14 +361,27 @@ def main():
         st.markdown('<p class="app-title">beta1</p>', unsafe_allow_html=True)
         st.caption(f"👤 {st.session_state.email}")
 
-        if st.button("🚪 Wyloguj", use_container_width=True):
+        if st.button(t("logout", L), use_container_width=True):
+            lang_backup = st.session_state.get("lang", "pl")
             for key in list(st.session_state.keys()): del st.session_state[key]
+            st.session_state.lang = lang_backup
             st.rerun()
 
-        # --- Motywy ---
+        # --- Język ---
         st.markdown("---")
-        st.session_state.motyw_ciemny = st.toggle("🌙 Tryb Ciemny", value=st.session_state.motyw_ciemny)
-        st.session_state.paleta = st.selectbox("🎨 Paleta", list(PALETY_KOLOROW.keys()),
+        lang_options = {"🇵🇱 Polski": "pl", "🇬🇧 English": "en"}
+        lang_labels = list(lang_options.keys())
+        current_idx = list(lang_options.values()).index(L) if L in lang_options.values() else 0
+        wybrany_jezyk = st.radio(t("language", L), lang_labels, index=current_idx, horizontal=True, key="lang_main")
+        new_lang = lang_options[wybrany_jezyk]
+        if new_lang != st.session_state.lang:
+            st.session_state.lang = new_lang
+            st.rerun()
+        L = st.session_state.lang
+
+        # --- Motywy ---
+        st.session_state.motyw_ciemny = st.toggle(t("dark_mode", L), value=st.session_state.motyw_ciemny)
+        st.session_state.paleta = st.selectbox(t("palette", L), list(PALETY_KOLOROW.keys()),
             index=list(PALETY_KOLOROW.keys()).index(st.session_state.paleta))
         kolory_html = " ".join(f'<span style="display:inline-block;width:18px;height:18px;'
             f'border-radius:50%;background:{c};margin:2px;"></span>' for c in PALETY_KOLOROW[st.session_state.paleta])
@@ -357,104 +389,100 @@ def main():
 
         # --- Zarządzanie portfelami ---
         st.markdown("---")
-        st.markdown("📁 **Portfele** (max 3)")
+        st.markdown(t("portfolios", L))
         portfele = pobierz_portfele(db, uid)
 
-        # Utwórz domyślny portfel jeśli brak
         if not portfele:
-            stworz_portfel(db, uid, "Mój Portfel")
+            default_name = "My Portfolio" if L == "en" else "Mój Portfel"
+            stworz_portfel(db, uid, default_name)
             portfele = pobierz_portfele(db, uid)
 
-        # Wybór aktywnego portfela
         nazwy = [p["nazwa"] for p in portfele]
         ids = [p["id"] for p in portfele]
         if st.session_state.aktywny_portfel not in ids:
             st.session_state.aktywny_portfel = ids[0] if ids else None
 
         wybrany_idx = ids.index(st.session_state.aktywny_portfel) if st.session_state.aktywny_portfel in ids else 0
-        wybrany = st.selectbox("Aktywny portfel", nazwy, index=wybrany_idx, key="portfel_select")
+        wybrany = st.selectbox(t("active_portfolio", L), nazwy, index=wybrany_idx, key="portfel_select")
         st.session_state.aktywny_portfel = ids[nazwy.index(wybrany)]
 
-        # Nowy portfel
         col_np1, col_np2 = st.columns([3, 1])
         with col_np1:
-            nowa_nazwa = st.text_input("Nowy portfel", placeholder="Nazwa", label_visibility="collapsed")
+            nowa_nazwa = st.text_input(t("new_portfolio", L), placeholder=t("name_placeholder", L), label_visibility="collapsed")
         with col_np2:
             if st.button("➕", key="btn_nowy_portfel"):
                 if nowa_nazwa.strip():
                     wyn = stworz_portfel(db, uid, nowa_nazwa.strip())
                     if wyn.get("error"): st.error(wyn["error"])
-                    else: st.success(f"✅ '{nowa_nazwa}' utworzony!"); st.rerun()
+                    else: st.success(f"✅ '{nowa_nazwa}' {t('portfolio_created', L)}"); st.rerun()
 
-        # Usuwanie portfela
         if len(portfele) > 1:
-            if st.button("🗑️ Usuń aktywny portfel", key="btn_usun_portfel"):
+            if st.button(t("delete_portfolio", L), key="btn_usun_portfel"):
                 usun_portfel(db, uid, st.session_state.aktywny_portfel)
                 st.session_state.aktywny_portfel = None
                 st.rerun()
 
         # --- Formularz transakcji ---
         st.markdown("---")
-        st.markdown("📝 **Dodaj Transakcję**")
+        st.markdown(t("add_transaction", L))
 
-        # Wyszukiwarka tickerów — selectbox z wbudowanym filtrem
-        opcje_tickerow = ["🔍 Wpisz ręcznie..."] + list(TICKER_DATABASE.keys())
+        opcje_tickerow = [t("type_manually", L)] + list(TICKER_DATABASE.keys())
         wybrany_ticker = st.selectbox(
-            "🎯 Ticker (wpisz aby szukać)",
-            opcje_tickerow,
-            index=0,
-            key="ticker_search",
-            help="Zacznij pisać nazwę spółki lub ticker — lista się przefiltruje"
+            t("ticker_search", L), opcje_tickerow, index=0,
+            key="ticker_search", help=t("ticker_search_help", L)
         )
 
-        # Jeśli wybrano z listy, pobierz ticker yfinance
-        if wybrany_ticker != "🔍 Wpisz ręcznie...":
+        if wybrany_ticker != t("type_manually", L):
             ticker_z_bazy = TICKER_DATABASE.get(wybrany_ticker, "")
         else:
             ticker_z_bazy = ""
 
+        buy_label = t("buy", L)
+        sell_label = t("sell", L)
         with st.form("form_tx", clear_on_submit=True):
-            ticker_in = st.text_input("Ticker", value=ticker_z_bazy, placeholder="np. AAPL, CDR.WA, BTC-GBP")
-            typ = st.radio("Typ", ["Kupno", "Sprzedaż"], horizontal=True)
-            ilosc = st.number_input("Ilość", min_value=0.0001, value=1.0, step=0.1, format="%.4f")
-            cena = st.number_input("Cena zakupu ($)", min_value=0.01, value=100.0, step=0.01, format="%.2f")
-            data_tx = st.date_input("Data", value=date.today())
-            dodaj = st.form_submit_button("➕ Dodaj", use_container_width=True)
+            ticker_in = st.text_input(t("ticker", L), value=ticker_z_bazy, placeholder="e.g. AAPL, CDR.WA, BTC-USD")
+            typ = st.radio(t("type", L), [buy_label, sell_label], horizontal=True)
+            ilosc = st.number_input(t("quantity", L), min_value=0.0001, value=1.0, step=0.1, format="%.4f")
+            cena = st.number_input(t("purchase_price", L), min_value=0.01, value=100.0, step=0.01, format="%.2f")
+            data_tx = st.date_input(t("date", L), value=date.today())
+            dodaj = st.form_submit_button(t("add_btn", L), use_container_width=True)
 
             if dodaj and st.session_state.aktywny_portfel:
                 tk = waliduj_ticker(ticker_in)
                 il, cn = waliduj_liczbe(ilosc), waliduj_liczbe(cena)
-                if not tk: st.error("❌ Nieprawidłowy ticker.")
-                elif il <= 0: st.error("❌ Ilość > 0!")
-                elif cn <= 0: st.error("❌ Cena > 0!")
+                if not tk: st.error(t("invalid_ticker", L))
+                elif il <= 0: st.error(t("quantity_gt0", L))
+                elif cn <= 0: st.error(t("price_gt0", L))
                 else:
-                    if typ == "Sprzedaż":
-                        trans = pobierz_transakcje(db, uid, st.session_state.aktywny_portfel)
-                        posiadane = sum(float(t["ilosc"]) if t["typ"]=="Kupno" else -float(t["ilosc"])
-                                        for t in trans if t["ticker"] == tk)
+                    typ_db = "Kupno" if typ == buy_label else "Sprzedaż"
+                    if typ_db == "Sprzedaż":
+                        trans_list = pobierz_transakcje(db, uid, st.session_state.aktywny_portfel)
+                        posiadane = sum(float(tx["ilosc"]) if tx["typ"]=="Kupno" else -float(tx["ilosc"])
+                                        for tx in trans_list if tx["ticker"] == tk)
                         if il > posiadane:
-                            st.error(f"❌ Masz tylko {posiadane:.4f} {tk}"); st.stop()
+                            st.error(f"{t('only_have', L)} {posiadane:.4f} {tk}"); st.stop()
                     dodaj_transakcje(db, uid, st.session_state.aktywny_portfel,
-                        {"ticker": tk, "ilosc": il, "cena_zakupu": cn, "data": str(data_tx), "typ": typ})
+                        {"ticker": tk, "ilosc": il, "cena_zakupu": cn, "data": str(data_tx), "typ": typ_db})
                     st.success(f"✅ {typ}: {il}× {tk} @ ${cn:.2f}")
                     st.rerun()
 
         # Lista transakcji
         st.markdown("---")
-        st.markdown("🗂️ **Transakcje**")
+        st.markdown(t("transactions", L))
         if st.session_state.aktywny_portfel:
             transakcje = pobierz_transakcje(db, uid, st.session_state.aktywny_portfel)
             if transakcje:
-                for t in transakcje:
-                    emoji = "🟢" if t["typ"] == "Kupno" else "🔴"
+                for tx in transakcje:
+                    emoji = "🟢" if tx["typ"] == "Kupno" else "🔴"
+                    typ_display = t("buy", L) if tx["typ"] == "Kupno" else t("sell", L)
                     c1, c2 = st.columns([4, 1])
-                    with c1: st.caption(f"{emoji} {t['typ']}: {t['ilosc']}× {t['ticker']} @ ${float(t['cena_zakupu']):.2f}")
+                    with c1: st.caption(f"{emoji} {typ_display}: {tx['ilosc']}× {tx['ticker']} @ ${float(tx['cena_zakupu']):.2f}")
                     with c2:
-                        if st.button("🗑️", key=f"del_{t['id']}"):
-                            usun_transakcje(db, uid, st.session_state.aktywny_portfel, t["id"])
+                        if st.button("🗑️", key=f"del_{tx['id']}"):
+                            usun_transakcje(db, uid, st.session_state.aktywny_portfel, tx["id"])
                             st.rerun()
             else:
-                st.info("Brak transakcji. Dodaj pierwszą! ☝️")
+                st.info(t("no_transactions", L))
 
     # =========================================================================
     # ZASTOSUJ MOTYW
@@ -466,21 +494,21 @@ def main():
     # DASHBOARD
     # =========================================================================
     st.markdown('<p class="app-title">📊 beta1 — Portfolio Tracker</p>', unsafe_allow_html=True)
-    st.markdown('<p class="app-subtitle">Dane z opóźnieniem ~15 min | Waluta: USD ($)</p>', unsafe_allow_html=True)
+    st.markdown(f'<p class="app-subtitle">{t("app_subtitle", L)}</p>', unsafe_allow_html=True)
 
     if not st.session_state.aktywny_portfel:
-        st.warning("Utwórz portfel w panelu bocznym."); return
+        st.warning(t("create_portfolio", L)); return
 
     transakcje = pobierz_transakcje(db, uid, st.session_state.aktywny_portfel)
     if not transakcje:
-        st.markdown("### 👋 Witaj! Dodaj transakcję w panelu bocznym.")
+        st.markdown(t("welcome", L))
         return
 
-    with st.spinner("📡 Pobieram dane rynkowe..."):
+    with st.spinner(t("fetching_data", L)):
         portfel_df = oblicz_portfel(transakcje)
 
     if portfel_df.empty:
-        st.warning("⚠️ Brak aktywnych pozycji."); return
+        st.warning(t("no_positions", L)); return
 
     # --- METRIC CARDS (4 karty) ---
     lw = portfel_df["Wartość ($)"].sum()
@@ -502,26 +530,27 @@ def main():
 
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        st.markdown(f'<div class="metric-card"><div class="label">Wartość Portfela</div>'
+        st.markdown(f'<div class="metric-card"><div class="label">{t("portfolio_value", L)}</div>'
             f'<div class="value">${lw:,.2f}</div>'
-            f'<div class="sub" style="color:{paleta[2]}">Zainwestowano: ${lk:,.2f}</div></div>', unsafe_allow_html=True)
+            f'<div class="sub" style="color:{paleta[2]}">{t("invested", L)}: ${lk:,.2f}</div></div>', unsafe_allow_html=True)
     with c2:
-        st.markdown(f'<div class="metric-card"><div class="label">Zysk / Strata</div>'
+        st.markdown(f'<div class="metric-card"><div class="label">{t("profit_loss", L)}</div>'
             f'<div class="value {kz}">{zn}${abs(lz):,.2f}</div>'
             f'<div class="sub {kz}">{zn}{lr:.2f}%</div></div>', unsafe_allow_html=True)
     with c3:
-        st.markdown(f'<div class="metric-card"><div class="label">Zmiana Dzisiaj</div>'
+        st.markdown(f'<div class="metric-card"><div class="label">{t("today_change", L)}</div>'
             f'<div class="value {dz_kz}">{dz_zn}${abs(dzienny_pl):,.2f}</div>'
             f'<div class="sub {dz_kz}">{dz_zn}{dzienny_pct:.2f}%</div></div>', unsafe_allow_html=True)
     with c4:
         ng_roi = najgorszy["ROI (%)"]
         ng_kz = "delta-negative" if ng_roi < 0 else "delta-positive"
-        st.markdown(f'<div class="metric-card"><div class="label">{"Największa Strata" if ng_roi < 0 else "Najlepsza Pozycja"}</div>'
+        label4 = t("biggest_loss", L) if ng_roi < 0 else t("best_position", L)
+        st.markdown(f'<div class="metric-card"><div class="label">{label4}</div>'
             f'<div class="value {ng_kz}">{najgorszy["Ticker"] if ng_roi < 0 else najlepszy["Ticker"]}</div>'
             f'<div class="{"loss-badge" if ng_roi < 0 else "sub delta-positive"}">{"" if ng_roi < 0 else "+"}{(ng_roi if ng_roi < 0 else najlepszy["ROI (%)"]):.2f}%</div></div>', unsafe_allow_html=True)
 
     # --- TABELA ---
-    st.markdown('<div class="section-header">📋 Podsumowanie</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="section-header">{t("summary", L)}</div>', unsafe_allow_html=True)
     def kol_w(val):
         try:
             v = float(val)
@@ -542,13 +571,13 @@ def main():
 
     ch1, ch2 = st.columns(2)
     with ch1:
-        st.markdown('<div class="section-header">🥧 Alokacja</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="section-header">{t("allocation", L)}</div>', unsafe_allow_html=True)
         fig_pie = px.pie(portfel_df, values="Wartość ($)", names="Ticker", color_discrete_sequence=paleta, hole=0.4)
         fig_pie.update_traces(textposition="inside", textinfo="percent+label")
         fig_pie.update_layout(**layout_base, legend=dict(orientation="h", y=-0.2))
         st.plotly_chart(fig_pie, use_container_width=True)
     with ch2:
-        st.markdown('<div class="section-header">📉 Zysk/Strata</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="section-header">{t("profit_loss_chart", L)}</div>', unsafe_allow_html=True)
         fig_pl = go.Figure()
         sorted_df = portfel_df.sort_values("Zysk/Strata ($)")
         colors_line = ["#10b981" if v >= 0 else "#ef4444" for v in sorted_df["Zysk/Strata ($)"]]
@@ -564,8 +593,8 @@ def main():
         st.plotly_chart(fig_pl, use_container_width=True)
 
     # --- HISTORIA ---
-    st.markdown('<div class="section-header">📈 Wartość w Czasie</div>', unsafe_allow_html=True)
-    with st.spinner("📊 Generuję historię..."):
+    st.markdown(f'<div class="section-header">{t("value_over_time", L)}</div>', unsafe_allow_html=True)
+    with st.spinner(t("generating_history", L)):
         hist_df = oblicz_historie_portfela(transakcje)
     if not hist_df.empty:
         fig_line = px.area(hist_df, x="Data", y="Wartość Portfela ($)", color_discrete_sequence=[paleta[0]])
@@ -575,8 +604,8 @@ def main():
         st.plotly_chart(fig_line, use_container_width=True)
 
     # --- ZWROT Z KAPITAŁU (ROI%) ---
-    st.markdown('<div class="section-header">📈 Zwrot z Kapitału (%)</div>', unsafe_allow_html=True)
-    with st.spinner("📊 Obliczam stopę zwrotu..."):
+    st.markdown(f'<div class="section-header">{t("roi_title", L)}</div>', unsafe_allow_html=True)
+    with st.spinner(t("calculating_roi", L)):
         roi_df = oblicz_roi_portfela(transakcje)
     if not roi_df.empty and len(roi_df) > 1:
         ostatni_roi = roi_df["ROI (%)"].iloc[-1]
@@ -584,12 +613,10 @@ def main():
         kolor_fill = hex_to_rgba("#00C853" if ostatni_roi >= 0 else "#FF1744", 0.1)
 
         fig_roi = go.Figure()
-        # Linia 0% jako odniesienie
         fig_roi.add_hline(y=0, line_dash="dash", line_color="rgba(128,128,128,0.5)", line_width=1)
-        # Główna linia ROI
         fig_roi.add_trace(go.Scatter(
             x=roi_df["Data"], y=roi_df["ROI (%)"],
-            mode="lines", name="Twój Portfel",
+            mode="lines", name=t("your_portfolio", L),
             line=dict(color=kolor_roi, width=2.5),
             fill="tozeroy", fillcolor=kolor_fill,
         ))
@@ -607,7 +634,7 @@ def main():
             xaxis=dict(showgrid=False, title=""),
             yaxis=dict(
                 showgrid=True, gridcolor="rgba(128,128,128,0.2)",
-                title="Stopa zwrotu (%)", zeroline=True,
+                title=t("roi_ylabel", L), zeroline=True,
                 zerolinecolor="rgba(128,128,128,0.5)", zerolinewidth=1
             ),
             showlegend=True, legend=dict(orientation="h", y=-0.15, x=0.5, xanchor="center")
@@ -615,7 +642,7 @@ def main():
         st.plotly_chart(fig_roi, use_container_width=True)
 
     # --- ZMIENNOŚĆ (ultra-compact horizontal) ---
-    st.markdown('<div class="section-header">📉 Zmienność Dzienna</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="section-header">{t("daily_volatility", L)}</div>', unsafe_allow_html=True)
     n_tickers = len(portfel_df)
     vol_height = max(80, min(35 * n_tickers + 40, 200))
     colors_vol = ["#10b981" if v >= 0 else "#ef4444" for v in portfel_df["Zmienność (%)"]]
