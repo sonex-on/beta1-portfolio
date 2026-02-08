@@ -641,26 +641,28 @@ def main():
         )
         st.plotly_chart(fig_roi, use_container_width=True)
 
-    # --- ZMIENNOŚĆ (ultra-compact horizontal) ---
-    st.markdown(f'<div class="section-header">{t("daily_volatility", L)}</div>', unsafe_allow_html=True)
-    n_tickers = len(portfel_df)
-    vol_height = max(80, min(35 * n_tickers + 40, 200))
-    colors_vol = ["#10b981" if v >= 0 else "#ef4444" for v in portfel_df["Zmienność (%)"]]
-    fig_vol = go.Figure(go.Bar(
-        y=portfel_df["Ticker"], x=portfel_df["Zmienność (%)"],
-        orientation="h", marker_color=colors_vol,
-        marker_line_width=0, width=0.4,
-        text=[f" {v:+.1f}% " for v in portfel_df["Zmienność (%)"]],
-        textposition="outside", textfont=dict(size=10),
-    ))
-    fig_vol.update_layout(
-        **{**layout_base, "height": vol_height, "margin": dict(t=5, b=5, l=60, r=40)},
-        xaxis=dict(showgrid=True, gridcolor="rgba(128,128,128,0.08)", title="", zeroline=True,
-                   zerolinecolor="rgba(128,128,128,0.3)", tickfont=dict(size=9)),
-        yaxis=dict(showgrid=False, tickfont=dict(size=10), automargin=True),
-        bargap=0.4,
-    )
-    st.plotly_chart(fig_vol, use_container_width=True)
+    # --- ZMIENNOŚĆ (ultra-compact, narrow column) ---
+    vol_col, _ = st.columns([1, 4])
+    with vol_col:
+        st.markdown(f'<div class="section-header">{t("daily_volatility", L)}</div>', unsafe_allow_html=True)
+        n_tickers = len(portfel_df)
+        vol_height = max(60, min(32 * n_tickers + 30, 180))
+        colors_vol = ["#10b981" if v >= 0 else "#ef4444" for v in portfel_df["Zmienność (%)"]]
+        fig_vol = go.Figure(go.Bar(
+            y=portfel_df["Ticker"], x=portfel_df["Zmienność (%)"],
+            orientation="h", marker_color=colors_vol,
+            marker_line_width=0, width=0.35,
+            text=[f" {v:+.1f}% " for v in portfel_df["Zmienność (%)"]],
+            textposition="outside", textfont=dict(size=9),
+        ))
+        fig_vol.update_layout(
+            **{**layout_base, "height": vol_height, "margin": dict(t=5, b=5, l=50, r=35)},
+            xaxis=dict(showgrid=True, gridcolor="rgba(128,128,128,0.08)", title="", zeroline=True,
+                       zerolinecolor="rgba(128,128,128,0.3)", tickfont=dict(size=8)),
+            yaxis=dict(showgrid=False, tickfont=dict(size=9), automargin=True),
+            bargap=0.4,
+        )
+        st.plotly_chart(fig_vol, use_container_width=True)
 
     st.markdown("---")
     st.markdown(f'<p style="text-align:center;color:#64748b;font-size:0.75rem;font-weight:500;">'
