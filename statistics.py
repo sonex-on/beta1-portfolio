@@ -28,20 +28,27 @@ def oblicz_statystyki(wartosci_portfela: pd.Series, risk_free_rate: float = 0.05
     if len(wartosci) < 2:
         return _puste_statystyki()
 
-    # --- Dzienne zwroty ---
+    # --- Dzienne zwroty (z filtrowaniem outlierów) ---
     dzienne_zwroty = wartosci.pct_change().dropna()
+    # Filtruj ekstremalnie duże zwroty (>50% dziennie = błąd danych)
+    dzienne_zwroty = dzienne_zwroty[(dzienne_zwroty > -0.5) & (dzienne_zwroty < 0.5)]
     if len(dzienne_zwroty) < 1:
         return _puste_statystyki()
+
+    # --- Ile dni ma portfel ---
+    n_days = (wartosci.index[-1] - wartosci.index[0]).days
+    wystarczajaco_dlugi = n_days >= 60  # Min 60 dni do annualizacji
 
     # --- 1. Total Return ---
     total_return = (wartosci.iloc[-1] / wartosci.iloc[0] - 1) * 100
 
-    # --- 2. Annualised Return (CAGR) ---
-    n_days = (wartosci.index[-1] - wartosci.index[0]).days
-    if n_days > 0:
+    # --- 2. Annualised Return (CAGR) — tylko dla portfeli > 60 dni ---
+    if wystarczajaco_dlugi and n_days > 0:
         cagr = ((wartosci.iloc[-1] / wartosci.iloc[0]) ** (365.25 / n_days) - 1) * 100
+        # Ogranicz do rozsądnych wartości
+        cagr = max(-99.99, min(cagr, 9999.99))
     else:
-        cagr = 0.0
+        cagr = total_return  # Dla krótkich portfeli = po prostu total return
 
     # --- 3. Max Drawdown ---
     cummax = wartosci.cummax()
@@ -52,17 +59,26 @@ def oblicz_statystyki(wartosci_portfela: pd.Series, risk_free_rate: float = 0.05
     daily_stdev = dzienne_zwroty.std() * 100
 
     # --- 5. Annualised Volatility ---
-    ann_vol = dzienne_zwroty.std() * np.sqrt(252) * 100
+    if wystarczajaco_dlugi:
+        ann_vol = dzienne_zwroty.std() * np.sqrt(252) * 100
+    else:
+        ann_vol = daily_stdev  # Nie annualizuj dla krótkich portfeli
 
     # --- 6. Sharpe Ratio ---
-    excess_return = cagr / 100 - risk_free_rate
-    sharpe = excess_return / (ann_vol / 100) if ann_vol > 0 else 0.0
+    if wystarczajaco_dlugi and ann_vol > 0:
+        excess_return = cagr / 100 - risk_free_rate
+        sharpe = excess_return / (ann_vol / 100)
+        sharpe = max(-10.0, min(sharpe, 10.0))  # Ogranicz do [-10, 10]
+    else:
+        sharpe = 0.0
 
     # --- 7. Sortino Ratio ---
     downside = dzienne_zwroty[dzienne_zwroty < 0]
-    if len(downside) > 0:
+    if wystarczajaco_dlugi and len(downside) > 0:
         downside_dev = downside.std() * np.sqrt(252)
+        excess_return = cagr / 100 - risk_free_rate
         sortino = excess_return / downside_dev if downside_dev > 0 else 0.0
+        sortino = max(-10.0, min(sortino, 10.0))
     else:
         sortino = 0.0
 

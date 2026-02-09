@@ -1032,7 +1032,7 @@ def main():
         st.markdown(f'<div class="section-header">{t("allocation", L)}</div>', unsafe_allow_html=True)
         fig_pie = px.pie(portfel_df, values="Wartość ($)", names="Ticker", color_discrete_sequence=paleta, hole=0.4)
         fig_pie.update_traces(textposition="inside", textinfo="percent+label")
-        fig_pie.update_layout(**layout_base, height=350, legend=dict(orientation="h", y=-0.2))
+        fig_pie.update_layout(**{**layout_base, "height": 350}, legend=dict(orientation="h", y=-0.2))
         st.plotly_chart(fig_pie, use_container_width=True)
     with ch2:
         st.markdown(f'<div class="section-header">{t("daily_volatility", L)}</div>', unsafe_allow_html=True)
