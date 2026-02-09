@@ -99,6 +99,32 @@ TRANSLATIONS = {
         "verification_sent": "✅ Link weryfikacyjny wysłany ponownie!",
         "invalid_email_format": "❌ Nieprawidłowy format email.",
         "attempts_left": "Pozostałe próby",
+
+        # --- Chart Tabs ---
+        "tab_chart": "Chart",
+        "tab_growth": "Growth",
+        "tab_balance": "Balance",
+        "tab_profit": "Profit",
+        "tab_drawdown": "Drawdown",
+        "tab_margin": "Margin",
+
+        # --- Statistics Panel ---
+        "statistics_title": "Statystyki",
+        "stat_return": "Zwrot",
+        "stat_annualised_return": "Zwrot roczny",
+        "stat_max_drawdown": "Maks. obsunięcie",
+        "stat_daily_stdev": "Dzienna odch. std.",
+        "stat_annualised_vol": "Zmienność roczna",
+        "stat_sharpe": "Sharpe ratio",
+        "stat_sortino": "Sortino ratio",
+        "stat_skewness": "Skośność",
+        "stat_kurtosis": "Kurtoza",
+        "stat_ath_quote": "Kwotowanie ATH",
+        "stat_days_since_ath": "Dni od ATH",
+        "stat_return_since_ath": "Zwrot od ATH",
+        "margin_new_badge": "Nowe",
+        "no_data_for_tab": "Brak danych dla tej zakładki.",
+        "loading_stats": "📊 Obliczam statystyki...",
     },
 
     "en": {
@@ -197,6 +223,32 @@ TRANSLATIONS = {
         "verification_sent": "✅ Verification link resent!",
         "invalid_email_format": "❌ Invalid email format.",
         "attempts_left": "Attempts remaining",
+
+        # --- Chart Tabs ---
+        "tab_chart": "Chart",
+        "tab_growth": "Growth",
+        "tab_balance": "Balance",
+        "tab_profit": "Profit",
+        "tab_drawdown": "Drawdown",
+        "tab_margin": "Margin",
+
+        # --- Statistics Panel ---
+        "statistics_title": "Statistics",
+        "stat_return": "Return",
+        "stat_annualised_return": "Annualised return",
+        "stat_max_drawdown": "Max. drawdown",
+        "stat_daily_stdev": "Daily STDEV",
+        "stat_annualised_vol": "Annualised volatility",
+        "stat_sharpe": "Sharpe ratio",
+        "stat_sortino": "Sortino ratio",
+        "stat_skewness": "Skewness",
+        "stat_kurtosis": "Kurtosis",
+        "stat_ath_quote": "ATH quote",
+        "stat_days_since_ath": "Days (since ATH)",
+        "stat_return_since_ath": "Return (since ATH)",
+        "margin_new_badge": "New",
+        "no_data_for_tab": "No data available for this tab.",
+        "loading_stats": "📊 Calculating statistics...",
     },
 }
 

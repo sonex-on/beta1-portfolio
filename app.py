@@ -20,8 +20,13 @@ from firebase_config import (
 )
 from ticker_db import TICKER_DATABASE, szukaj_tickery
 from translations import t
+from statistics import (
+    oblicz_statystyki, oblicz_drawdown_serie,
+    oblicz_growth_serie, oblicz_profit_serie,
+)
 import re
 import random
+import numpy as np
 
 # =============================================================================
 # STAŁE
@@ -43,37 +48,55 @@ PALETY_KOLOROW = {
 # MOTYWY I CSS
 # =============================================================================
 def zastosuj_motyw(ciemny: bool, paleta_nazwa: str):
-    """Aplikuje CSS motywu + paletę kolorów."""
+    """Aplikuje CSS motywu + paletę kolorów. DESIGNER agent v2 — trading platform style."""
     paleta = PALETY_KOLOROW.get(paleta_nazwa, PALETY_KOLOROW["Oceanic"])
     k1, k2 = paleta[0], paleta[1]
     if ciemny:
         tlo, tlo_k, tekst, ramka, tlo_sb = "#0a0e17", "#111827", "#F1F5F9", "#1e293b", "#0f1520"
-        card_bg = "rgba(17,24,39,0.7)"
+        card_bg = "rgba(17,24,39,0.85)"
         card_border = "rgba(255,255,255,0.06)"
-        glass = "backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);"
+        glass = "backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);"
+        stat_bg = "linear-gradient(135deg, #1a1f2e 0%, #0f1420 100%)"
+        stat_border = "rgba(255,255,255,0.05)"
+        stat_row_hover = "rgba(255,255,255,0.03)"
+        tab_bg = "rgba(255,255,255,0.04)"
+        tab_active = k1
+        tab_text = "#94a3b8"
+        tab_active_text = "#ffffff"
     else:
         tlo, tlo_k, tekst, ramka, tlo_sb = "#f8fafc", "#ffffff", "#0f172a", "#e2e8f0", "#f1f5f9"
-        card_bg = "rgba(255,255,255,0.8)"
+        card_bg = "rgba(255,255,255,0.9)"
         card_border = "rgba(0,0,0,0.06)"
         glass = "backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);"
+        stat_bg = "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)"
+        stat_border = "rgba(0,0,0,0.08)"
+        stat_row_hover = "rgba(0,0,0,0.02)"
+        tab_bg = "rgba(0,0,0,0.04)"
+        tab_active = k1
+        tab_text = "#64748b"
+        tab_active_text = "#ffffff"
 
     st.markdown(f"""<style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
     * {{ font-family: 'Inter', -apple-system, sans-serif !important; }}
     .stApp {{ background: {tlo}; color: {tekst}; }}
     section[data-testid="stSidebar"] {{ background: {tlo_sb}; border-right: 1px solid {card_border}; }}
+
+    /* --- Metric Cards --- */
     .metric-card {{
         background: {card_bg}; {glass}
         border: 1px solid {card_border}; border-radius: 16px;
         padding: 18px 20px; text-align: center;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        box-shadow: 0 4px 24px rgba(0,0,0,0.12);
         transition: transform 0.25s cubic-bezier(.4,0,.2,1), box-shadow 0.25s;
     }}
-    .metric-card:hover {{ transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,0,0,0.15); }}
+    .metric-card:hover {{ transform: translateY(-3px); box-shadow: 0 12px 40px rgba(0,0,0,0.2); }}
     .metric-card .value {{ font-size: 1.7rem; font-weight: 800; color: {k1}; margin: 6px 0 3px; letter-spacing: -0.02em; }}
     .metric-card .label {{ font-size: 0.7rem; color: {tekst}99; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; }}
     .metric-card .sub {{ font-size: 0.8rem; margin-top: 2px; }}
     .delta-positive {{ color: #10b981; }} .delta-negative {{ color: #ef4444; }}
+
+    /* --- Typography --- */
     .app-title {{ text-align:center; font-size:2rem; font-weight:900; letter-spacing:-0.03em;
         background: linear-gradient(135deg, {k1}, {k2});
         -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom:2px; }}
@@ -82,6 +105,59 @@ def zastosuj_motyw(ciemny: bool, paleta_nazwa: str):
         border-left:3px solid {k1}; padding-left:12px; margin:28px 0 12px; }}
     .loss-badge {{ display:inline-block; background:rgba(239,68,68,0.12); color:#ef4444;
         padding:3px 10px; border-radius:8px; font-size:0.75rem; font-weight:600; margin-top:4px; }}
+
+    /* --- Statistics Table (Trading Platform Style) --- */
+    .stat-table {{
+        background: {stat_bg};
+        border: 1px solid {stat_border};
+        border-radius: 12px;
+        padding: 20px 24px;
+        margin: 16px 0;
+    }}
+    .stat-table-title {{
+        font-size: 0.85rem; font-weight: 700; color: {tekst};
+        letter-spacing: 0.5px; margin-bottom: 14px;
+    }}
+    .stat-row {{
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 7px 0; border-bottom: 1px solid {stat_border};
+        transition: background 0.15s;
+    }}
+    .stat-row:hover {{ background: {stat_row_hover}; margin: 0 -8px; padding: 7px 8px; border-radius: 6px; }}
+    .stat-row:last-child {{ border-bottom: none; }}
+    .stat-label {{ font-size: 0.82rem; color: {tab_text}; font-weight: 500; }}
+    .stat-val {{ font-size: 0.82rem; font-weight: 700; }}
+    .stat-val.positive {{ color: #10b981; }}
+    .stat-val.negative {{ color: #ef4444; }}
+    .stat-val.neutral {{ color: {tekst}; }}
+
+    /* --- NEW Badge --- */
+    .new-badge {{
+        display: inline-block;
+        background: linear-gradient(135deg, #10b981, #06d6a0);
+        color: #fff; font-size: 0.6rem; font-weight: 800;
+        padding: 2px 7px; border-radius: 6px;
+        letter-spacing: 0.8px; text-transform: uppercase;
+        margin-left: 6px; vertical-align: middle;
+    }}
+
+    /* --- Streamlit Tab Overrides --- */
+    .stTabs [data-baseweb="tab-list"] {{
+        gap: 4px; background: {tab_bg}; border-radius: 12px; padding: 4px;
+    }}
+    .stTabs [data-baseweb="tab"] {{
+        border-radius: 8px; padding: 8px 18px;
+        color: {tab_text}; font-weight: 600; font-size: 0.85rem;
+        background: transparent; border: none;
+        transition: all 0.2s ease;
+    }}
+    .stTabs [data-baseweb="tab"]:hover {{ background: rgba(255,255,255,0.06); color: {tekst}; }}
+    .stTabs [aria-selected="true"] {{
+        background: {tab_active} !important; color: {tab_active_text} !important;
+        box-shadow: 0 2px 12px {k1}40;
+    }}
+    .stTabs [data-baseweb="tab-border"] {{ display: none; }}
+    .stTabs [data-baseweb="tab-highlight"] {{ display: none; }}
     </style>""", unsafe_allow_html=True)
 
 # =============================================================================
@@ -614,7 +690,7 @@ def main():
     paleta = PALETY_KOLOROW[st.session_state.paleta]
 
     # =========================================================================
-    # DASHBOARD
+    # DASHBOARD — ARCHITECT + DESIGNER + CHART MASTER
     # =========================================================================
     st.markdown('<p class="app-title">📊 Portfel inwestycyjny</p>', unsafe_allow_html=True)
     st.markdown(f'<p class="app-subtitle">{t("app_subtitle", L)}</p>', unsafe_allow_html=True)
@@ -641,13 +717,11 @@ def main():
     kz = "delta-positive" if lz >= 0 else "delta-negative"
     zn = "+" if lz >= 0 else ""
 
-    # Dzienny P&L — użyj zmienności
     dzienny_pl = sum(portfel_df["Wartość ($)"] * portfel_df["Zmienność (%)"] / 100)
     dzienny_pct = (dzienny_pl / lw * 100) if lw > 0 else 0
     dz_kz = "delta-positive" if dzienny_pl >= 0 else "delta-negative"
     dz_zn = "+" if dzienny_pl >= 0 else ""
 
-    # Najgorsza i najlepsza pozycja
     najgorszy = portfel_df.loc[portfel_df["ROI (%)"].idxmin()]
     najlepszy = portfel_df.loc[portfel_df["ROI (%)"].idxmax()]
 
@@ -670,9 +744,275 @@ def main():
         label4 = t("biggest_loss", L) if ng_roi < 0 else t("best_position", L)
         st.markdown(f'<div class="metric-card"><div class="label">{label4}</div>'
             f'<div class="value {ng_kz}">{najgorszy["Ticker"] if ng_roi < 0 else najlepszy["Ticker"]}</div>'
-            f'<div class="{"loss-badge" if ng_roi < 0 else "sub delta-positive"}">{"" if ng_roi < 0 else "+"}{(ng_roi if ng_roi < 0 else najlepszy["ROI (%)"]):.2f}%</div></div>', unsafe_allow_html=True)
+            f'<div class="{"loss-badge" if ng_roi < 0 else "sub delta-positive"}">{"" if ng_roi < 0 else "+"}{(ng_roi if ng_roi < 0 else najlepszy["ROI (%)"]):+.2f}%</div></div>', unsafe_allow_html=True)
 
-    # --- TABELA ---
+    # =========================================================================
+    # CHART TABS — ARCHITECT + CHART MASTER
+    # =========================================================================
+    is_dark = st.session_state.motyw_ciemny
+    font_col = "#FAFAFA" if is_dark else "#1A1A2E"
+    grid_col = "rgba(255,215,0,0.05)" if is_dark else "rgba(0,0,0,0.05)"
+    chart_line_color = "#FFD700"  # Gold — main chart color
+    layout_base = dict(
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color=font_col, family="Inter"),
+        margin=dict(t=20, b=40, l=50, r=30), height=420,
+    )
+
+    # --- Pobierz dane dla wykresów z cache ---
+    with st.spinner(t("generating_history", L)):
+        roi_df = oblicz_roi_portfela(transakcje)
+        hist_df = oblicz_historie_portfela(transakcje)
+
+    # Przygotuj serie do wykresów
+    wartosci_serie = None
+    kapital_serie = None
+    stats = None
+
+    if not roi_df.empty and len(roi_df) > 1:
+        wartosci_serie = pd.Series(roi_df["Wartość ($)"].values, index=pd.to_datetime(roi_df["Data"]))
+        kapital_serie = pd.Series(roi_df["Kapitał ($)"].values, index=pd.to_datetime(roi_df["Data"]))
+        stats = oblicz_statystyki(wartosci_serie)
+
+    # --- TABS ---
+    tab_names = [
+        t("tab_chart", L),
+        t("tab_growth", L),
+        t("tab_balance", L),
+        t("tab_profit", L),
+        t("tab_drawdown", L),
+        f'{t("tab_margin", L)}',
+    ]
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(tab_names)
+
+    # ===================== TAB 1: CHART (Portfolio Value) =====================
+    with tab1:
+        if wartosci_serie is not None and len(wartosci_serie) > 1:
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=wartosci_serie.index, y=wartosci_serie.values,
+                mode="lines", name=t("portfolio_value_label", L),
+                line=dict(color=chart_line_color, width=2.5),
+                fill="tozeroy", fillcolor=hex_to_rgba(chart_line_color, 0.08),
+                hovertemplate="<b>%{x|%b %d, '%y}</b><br>$%{y:,.2f}<extra></extra>",
+            ))
+            # Dotted reference line at start value
+            fig.add_hline(y=wartosci_serie.iloc[0], line_dash="dot",
+                          line_color="rgba(128,128,128,0.3)", line_width=1)
+            fig.update_layout(**layout_base,
+                xaxis=dict(showgrid=False, title="", gridcolor=grid_col),
+                yaxis=dict(showgrid=True, gridcolor=grid_col, title="$",
+                           tickprefix="$", separatethousands=True),
+                showlegend=True, legend=dict(orientation="h", y=-0.12, x=0.5, xanchor="center"))
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info(t("no_data_for_tab", L))
+
+    # ===================== TAB 2: GROWTH (cumulative %) =====================
+    with tab2:
+        if wartosci_serie is not None and len(wartosci_serie) > 1:
+            growth = oblicz_growth_serie(wartosci_serie)
+            fig = go.Figure()
+            kolor_g = "#10b981" if growth.iloc[-1] >= 0 else "#ef4444"
+            fig.add_trace(go.Scatter(
+                x=growth.index, y=growth.values,
+                mode="lines", name=t("tab_growth", L),
+                line=dict(color=kolor_g, width=2.5),
+                fill="tozeroy", fillcolor=hex_to_rgba(kolor_g, 0.08),
+                hovertemplate="<b>%{x|%b %d, '%y}</b><br>%{y:+.2f}%<extra></extra>",
+            ))
+            fig.add_hline(y=0, line_dash="dash", line_color="rgba(128,128,128,0.4)", line_width=1)
+            # Endpoint annotation
+            fig.add_annotation(
+                x=growth.index[-1], y=growth.iloc[-1],
+                text=f"<b>{growth.iloc[-1]:+.2f}%</b>",
+                showarrow=True, arrowhead=2, arrowcolor=kolor_g,
+                bgcolor=kolor_g, font=dict(color="white", size=11),
+                bordercolor=kolor_g, borderwidth=1, borderpad=4, ax=40, ay=-25)
+            fig.update_layout(**layout_base,
+                xaxis=dict(showgrid=False, title=""),
+                yaxis=dict(showgrid=True, gridcolor=grid_col, title="%",
+                           zeroline=True, zerolinecolor="rgba(128,128,128,0.4)"),
+                showlegend=False)
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info(t("no_data_for_tab", L))
+
+    # ===================== TAB 3: BALANCE (invested vs value) =====================
+    with tab3:
+        if wartosci_serie is not None and kapital_serie is not None and len(wartosci_serie) > 1:
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=wartosci_serie.index, y=kapital_serie.values,
+                mode="lines", name=t("invested", L),
+                line=dict(color="#64748b", width=1.5, dash="dot"),
+                hovertemplate="<b>%{x|%b %d, '%y}</b><br>" + t("invested", L) + ": $%{y:,.2f}<extra></extra>",
+            ))
+            fig.add_trace(go.Scatter(
+                x=wartosci_serie.index, y=wartosci_serie.values,
+                mode="lines", name=t("portfolio_value_label", L),
+                line=dict(color=chart_line_color, width=2.5),
+                fill="tonexty", fillcolor=hex_to_rgba(chart_line_color, 0.06),
+                hovertemplate="<b>%{x|%b %d, '%y}</b><br>" + t("portfolio_value_label", L) + ": $%{y:,.2f}<extra></extra>",
+            ))
+            fig.update_layout(**layout_base,
+                xaxis=dict(showgrid=False, title=""),
+                yaxis=dict(showgrid=True, gridcolor=grid_col, title="$", tickprefix="$"),
+                showlegend=True, legend=dict(orientation="h", y=-0.12, x=0.5, xanchor="center"))
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info(t("no_data_for_tab", L))
+
+    # ===================== TAB 4: PROFIT (P&L over time) =====================
+    with tab4:
+        if wartosci_serie is not None and kapital_serie is not None and len(wartosci_serie) > 1:
+            profit = oblicz_profit_serie(wartosci_serie, kapital_serie)
+            fig = go.Figure()
+            kolor_p = "#10b981" if profit.iloc[-1] >= 0 else "#ef4444"
+            fig.add_trace(go.Scatter(
+                x=profit.index, y=profit.values,
+                mode="lines", name=t("tab_profit", L),
+                line=dict(color=kolor_p, width=2.5),
+                fill="tozeroy", fillcolor=hex_to_rgba(kolor_p, 0.08),
+                hovertemplate="<b>%{x|%b %d, '%y}</b><br>$%{y:+,.2f}<extra></extra>",
+            ))
+            fig.add_hline(y=0, line_dash="dash", line_color="rgba(128,128,128,0.4)", line_width=1)
+            # Endpoint
+            fig.add_annotation(
+                x=profit.index[-1], y=profit.iloc[-1],
+                text=f"<b>${profit.iloc[-1]:+,.2f}</b>",
+                showarrow=True, arrowhead=2, arrowcolor=kolor_p,
+                bgcolor=kolor_p, font=dict(color="white", size=11),
+                bordercolor=kolor_p, borderwidth=1, borderpad=4, ax=50, ay=-25)
+            fig.update_layout(**layout_base,
+                xaxis=dict(showgrid=False, title=""),
+                yaxis=dict(showgrid=True, gridcolor=grid_col, title="$",
+                           zeroline=True, zerolinecolor="rgba(128,128,128,0.4)"),
+                showlegend=True, legend=dict(orientation="h", y=-0.12, x=0.5, xanchor="center"))
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info(t("no_data_for_tab", L))
+
+    # ===================== TAB 5: DRAWDOWN =====================
+    with tab5:
+        if wartosci_serie is not None and len(wartosci_serie) > 1:
+            dd = oblicz_drawdown_serie(wartosci_serie)
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=dd.index, y=dd.values,
+                mode="lines", name=t("tab_drawdown", L),
+                line=dict(color="#ef4444", width=2),
+                fill="tozeroy", fillcolor="rgba(239,68,68,0.12)",
+                hovertemplate="<b>%{x|%b %d, '%y}</b><br>%{y:.2f}%<extra></extra>",
+            ))
+            fig.add_hline(y=0, line_dash="solid", line_color="rgba(128,128,128,0.3)", line_width=1)
+            # Max drawdown annotation
+            if len(dd) > 0:
+                max_dd_idx = dd.idxmin()
+                max_dd_val = dd.min()
+                fig.add_annotation(
+                    x=max_dd_idx, y=max_dd_val,
+                    text=f"<b>{max_dd_val:.2f}%</b>",
+                    showarrow=True, arrowhead=2, arrowcolor="#ef4444",
+                    bgcolor="#ef4444", font=dict(color="white", size=11),
+                    bordercolor="#ef4444", borderwidth=1, borderpad=4, ax=40, ay=-25)
+            fig.update_layout(**layout_base,
+                xaxis=dict(showgrid=False, title=""),
+                yaxis=dict(showgrid=True, gridcolor=grid_col, title="%", autorange=True),
+                showlegend=False)
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info(t("no_data_for_tab", L))
+
+    # ===================== TAB 6: MARGIN (Cash vs Invested) =====================
+    with tab6:
+        st.markdown(f'<span class="new-badge">{t("margin_new_badge", L)}</span>', unsafe_allow_html=True)
+        if wartosci_serie is not None and kapital_serie is not None and len(wartosci_serie) > 1:
+            # Margin = (Value - Invested) / Value * 100
+            margin_pct = ((wartosci_serie - kapital_serie) / wartosci_serie) * 100
+            margin_pct = margin_pct.fillna(0)
+            fig = go.Figure()
+            kolor_m = "#10b981" if margin_pct.iloc[-1] >= 0 else "#ef4444"
+            fig.add_trace(go.Scatter(
+                x=margin_pct.index, y=margin_pct.values,
+                mode="lines", name="Margin %",
+                line=dict(color=kolor_m, width=2.5),
+                fill="tozeroy", fillcolor=hex_to_rgba(kolor_m, 0.06),
+                hovertemplate="<b>%{x|%b %d, '%y}</b><br>%{y:+.2f}%<extra></extra>",
+            ))
+            fig.add_hline(y=0, line_dash="dash", line_color="rgba(128,128,128,0.4)", line_width=1)
+            fig.add_annotation(
+                x=margin_pct.index[-1], y=margin_pct.iloc[-1],
+                text=f"<b>{margin_pct.iloc[-1]:+.2f}%</b>",
+                showarrow=True, arrowhead=2, arrowcolor=kolor_m,
+                bgcolor=kolor_m, font=dict(color="white", size=11),
+                bordercolor=kolor_m, borderwidth=1, borderpad=4, ax=40, ay=-25)
+            fig.update_layout(**layout_base,
+                xaxis=dict(showgrid=False, title=""),
+                yaxis=dict(showgrid=True, gridcolor=grid_col, title="%",
+                           zeroline=True, zerolinecolor="rgba(128,128,128,0.4)"),
+                showlegend=False)
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info(t("no_data_for_tab", L))
+
+    # =========================================================================
+    # STATISTICS PANEL — QUANT + DESIGNER
+    # =========================================================================
+    if stats:
+        st.markdown(f'<div class="stat-table"><div class="stat-table-title">{t("statistics_title", L)}</div>', unsafe_allow_html=True)
+
+        def _stat_class(val, invert=False):
+            """Zwraca klasę CSS na podstawie wartości."""
+            if isinstance(val, (int, float)):
+                if invert:
+                    return "negative" if val > 0 else ("positive" if val < 0 else "neutral")
+                return "positive" if val > 0 else ("negative" if val < 0 else "neutral")
+            return "neutral"
+
+        def _fmt(val, suffix="%", decimals=2):
+            """Formatuje wartość z sufiksem."""
+            if isinstance(val, int):
+                return f"{val}"
+            return f"{val:+.{decimals}f}{suffix}" if suffix == "%" else f"{val:.{decimals}f}"
+
+        # Lewy i prawy blok statystyk
+        stat_left = [
+            (t("stat_return", L), stats["return"], "%", False),
+            (t("stat_annualised_return", L), stats["annualised_return"], "%", False),
+            (t("stat_max_drawdown", L), stats["max_drawdown"], "%", False),
+            (t("stat_daily_stdev", L), stats["daily_stdev"], "%", False),
+            (t("stat_annualised_vol", L), stats["annualised_vol"], "%", False),
+            (t("stat_sharpe", L), stats["sharpe"], "", False),
+        ]
+        stat_right = [
+            (t("stat_sortino", L), stats["sortino"], "", False),
+            (t("stat_skewness", L), stats["skewness"], "", False),
+            (t("stat_kurtosis", L), stats["kurtosis"], "", False),
+            (t("stat_ath_quote", L), stats["ath_quote"], "", False),
+            (t("stat_days_since_ath", L), stats["days_since_ath"], "", False),
+            (t("stat_return_since_ath", L), stats["return_since_ath"], "%", False),
+        ]
+
+        col_s1, col_s2 = st.columns(2)
+        with col_s1:
+            rows_html = ""
+            for label, val, suf, inv in stat_left:
+                css_cl = _stat_class(val, inv)
+                formatted = _fmt(val, suf)
+                rows_html += f'<div class="stat-row"><span class="stat-label">{label}</span><span class="stat-val {css_cl}">{formatted}</span></div>'
+            st.markdown(rows_html, unsafe_allow_html=True)
+        with col_s2:
+            rows_html = ""
+            for label, val, suf, inv in stat_right:
+                css_cl = _stat_class(val, inv)
+                formatted = _fmt(val, suf)
+                rows_html += f'<div class="stat-row"><span class="stat-label">{label}</span><span class="stat-val {css_cl}">{formatted}</span></div>'
+            st.markdown(rows_html, unsafe_allow_html=True)
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # --- TABELA PODSUMOWANIE ---
     st.markdown(f'<div class="section-header">{t("summary", L)}</div>', unsafe_allow_html=True)
     def kol_w(val):
         try:
@@ -686,216 +1026,18 @@ def main():
         "Wartość ($)": "${:,.2f}", "Zysk/Strata ($)": "{:+,.2f}$", "ROI (%)": "{:+.2f}%", "Zmienność (%)": "{:+.2f}%"})
     st.dataframe(styled, use_container_width=True, hide_index=True)
 
-    # --- WYKRESY ---
-    is_dark = st.session_state.motyw_ciemny
-    font_col = "#FAFAFA" if is_dark else "#1A1A2E"
-    layout_base = dict(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                       font=dict(color=font_col), margin=dict(t=20, b=20, l=20, r=20), height=400)
-
-    ch1, ch2 = st.columns(2)
+    # --- ALOKACJA + ZMIENNOŚĆ ---
+    ch1, ch2 = st.columns([3, 1])
     with ch1:
         st.markdown(f'<div class="section-header">{t("allocation", L)}</div>', unsafe_allow_html=True)
         fig_pie = px.pie(portfel_df, values="Wartość ($)", names="Ticker", color_discrete_sequence=paleta, hole=0.4)
         fig_pie.update_traces(textposition="inside", textinfo="percent+label")
-        fig_pie.update_layout(**layout_base, legend=dict(orientation="h", y=-0.2))
+        fig_pie.update_layout(**layout_base, height=350, legend=dict(orientation="h", y=-0.2))
         st.plotly_chart(fig_pie, use_container_width=True)
     with ch2:
-        st.markdown(f'<div class="section-header">{t("profit_loss_chart", L)}</div>', unsafe_allow_html=True)
-        fig_pl = go.Figure()
-        sorted_df = portfel_df.sort_values("Zysk/Strata ($)")
-        colors_line = ["#10b981" if v >= 0 else "#ef4444" for v in sorted_df["Zysk/Strata ($)"]]
-        fig_pl.add_trace(go.Scatter(
-            x=sorted_df["Ticker"], y=sorted_df["Zysk/Strata ($)"],
-            mode="lines+markers", name="P&L",
-            line=dict(color=paleta[0], width=2.5),
-            marker=dict(color=colors_line, size=10, line=dict(width=2, color="white")),
-        ))
-        fig_pl.add_hline(y=0, line_dash="dash", line_color="rgba(128,128,128,0.4)", line_width=1)
-        fig_pl.update_layout(**{**layout_base, "height": 320},
-            xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor="rgba(128,128,128,0.1)", title="$"))
-        st.plotly_chart(fig_pl, use_container_width=True)
-
-    # --- HISTORIA ---
-    st.markdown(f'<div class="section-header">{t("value_over_time", L)}</div>', unsafe_allow_html=True)
-    with st.spinner(t("generating_history", L)):
-        hist_df = oblicz_historie_portfela(transakcje)
-    if not hist_df.empty:
-        fig_line = px.area(hist_df, x="Data", y="Wartość Portfela ($)", color_discrete_sequence=[paleta[0]])
-        fig_line.update_traces(fill="tozeroy", fillcolor=hex_to_rgba(paleta[0], 0.13), line=dict(width=2.5))
-        fig_line.update_layout(**layout_base, xaxis=dict(showgrid=False, title=""),
-            yaxis=dict(showgrid=True, gridcolor="rgba(128,128,128,0.2)", title="$"))
-        st.plotly_chart(fig_line, use_container_width=True)
-
-    # --- ZWROT Z KAPITAŁU (ROI%) ---
-    st.markdown(f'<div class="section-header">{t("roi_title", L)}</div>', unsafe_allow_html=True)
-    with st.spinner(t("calculating_roi", L)):
-        roi_df = oblicz_roi_portfela(transakcje)
-    if not roi_df.empty and len(roi_df) > 1:
-        ostatni_roi = roi_df["ROI (%)"].iloc[-1]
-        kolor_roi = "#00C853" if ostatni_roi >= 0 else "#FF1744"
-        kolor_fill = hex_to_rgba("#00C853" if ostatni_roi >= 0 else "#FF1744", 0.1)
-
-        fig_roi = go.Figure()
-        fig_roi.add_hline(y=0, line_dash="dash", line_color="rgba(128,128,128,0.5)", line_width=1)
-        fig_roi.add_trace(go.Scatter(
-            x=roi_df["Data"], y=roi_df["ROI (%)"],
-            mode="lines", name=t("your_portfolio", L),
-            line=dict(color=kolor_roi, width=2.5),
-            fill="tozeroy", fillcolor=kolor_fill,
-        ))
-        # Etykieta z aktualnym ROI% na końcu linii
-        fig_roi.add_annotation(
-            x=roi_df["Data"].iloc[-1], y=ostatni_roi,
-            text=f"<b>{ostatni_roi:+.2f}%</b>",
-            showarrow=True, arrowhead=2, arrowsize=1, arrowcolor=kolor_roi,
-            bgcolor=kolor_roi, font=dict(color="white", size=12),
-            bordercolor=kolor_roi, borderwidth=1, borderpad=4,
-            ax=40, ay=-20
-        )
-        fig_roi.update_layout(
-            **{**layout_base, "height": 350},
-            xaxis=dict(showgrid=False, title=""),
-            yaxis=dict(
-                showgrid=True, gridcolor="rgba(128,128,128,0.2)",
-                title=t("roi_ylabel", L), zeroline=True,
-                zerolinecolor="rgba(128,128,128,0.5)", zerolinewidth=1
-            ),
-            showlegend=True, legend=dict(orientation="h", y=-0.15, x=0.5, xanchor="center")
-        )
-        st.plotly_chart(fig_roi, use_container_width=True)
-
-    # --- ZMIANA PORTFELA (z wyborem ramy czasowej) ---
-    st.markdown(f'<div class="section-header">{t("portfolio_change_title", L)}</div>', unsafe_allow_html=True)
-
-    TIMEFRAMES = {
-        "1h": ("1d", "5m"),
-        "4h": ("1d", "15m"),
-        "12h": ("5d", "30m"),
-        "1D": ("5d", "1h"),
-        "7D": ("1mo", "1d"),
-        "30D": ("3mo", "1d"),
-        "6M": ("6mo", "1d"),
-        "1Y": ("1y", "1d"),
-        "2Y": ("2y", "1wk"),
-        "5Y": ("5y", "1wk"),
-        "10Y": ("10y", "1mo"),
-        "20Y": ("20y", "1mo"),
-        "30Y": ("max", "1mo"),
-    }
-
-    tf_labels = list(TIMEFRAMES.keys())
-    if "tf_idx" not in st.session_state:
-        st.session_state.tf_idx = tf_labels.index("1D")
-    selected_tf = st.radio(t("timeframe", L), tf_labels, index=st.session_state.tf_idx,
-                           horizontal=True, key="tf_radio", label_visibility="collapsed")
-    st.session_state.tf_idx = tf_labels.index(selected_tf)
-
-    yf_period, yf_interval = TIMEFRAMES[selected_tf]
-
-    with st.spinner(t("loading_chart", L)):
-        # Pobierz dane portfela wg wybranej ramy
-        tickery_portfela = portfel_df["Ticker"].tolist()
-        ilosci = {r["Ticker"]: r["Ilość"] for _, r in portfel_df.iterrows()}
-
-        # Pobierz wspólną historię cen
-        dane_tf = {}
-        for tk in tickery_portfela:
-            try:
-                hist = yf.Ticker(tk).history(period=yf_period, interval=yf_interval)
-                if not hist.empty:
-                    dane_tf[tk] = hist["Close"]
-            except Exception:
-                pass
-
-        if dane_tf:
-            df_tf = pd.DataFrame(dane_tf).ffill().bfill().dropna()
-
-            if not df_tf.empty and len(df_tf) > 1:
-                # Oblicz wartość portfela w każdym punkcie
-                wartosci_p = pd.Series(0.0, index=df_tf.index)
-                for tk in tickery_portfela:
-                    if tk in df_tf.columns:
-                        wartosci_p += df_tf[tk] * ilosci.get(tk, 0)
-
-                # Zmiana procentowa od początku okresu
-                pct_change = ((wartosci_p / wartosci_p.iloc[0]) - 1) * 100
-                zmiana_total = pct_change.iloc[-1]
-                wartosc_start = wartosci_p.iloc[0]
-                wartosc_koniec = wartosci_p.iloc[-1]
-
-                kolor_zmiany = "#00C853" if zmiana_total >= 0 else "#FF1744"
-                kolor_fill = hex_to_rgba(kolor_zmiany, 0.1)
-
-                fig_tf = go.Figure()
-
-                # Linia wartości portfela
-                fig_tf.add_trace(go.Scatter(
-                    x=wartosci_p.index, y=wartosci_p.values,
-                    mode="lines", name=t("portfolio_value_label", L),
-                    line=dict(color=kolor_zmiany, width=2.5),
-                    fill="tozeroy", fillcolor=kolor_fill,
-                    hovertemplate="<b>%{x}</b><br>" + t("portfolio_value_label", L) + ": $%{y:,.2f}<extra></extra>",
-                ))
-
-                # Linia bazowa (wartość startowa)
-                fig_tf.add_hline(y=wartosc_start, line_dash="dash",
-                                 line_color="rgba(128,128,128,0.5)", line_width=1)
-
-                # Etykieta z ceną końcową i % zmianą
-                znak = "+" if zmiana_total >= 0 else ""
-                fig_tf.add_annotation(
-                    x=wartosci_p.index[-1], y=wartosc_koniec,
-                    text=f"<b>${wartosc_koniec:,.2f}</b><br>{znak}{zmiana_total:.2f}%",
-                    showarrow=True, arrowhead=2, arrowsize=1, arrowcolor=kolor_zmiany,
-                    bgcolor=kolor_zmiany, font=dict(color="white", size=11),
-                    bordercolor=kolor_zmiany, borderwidth=1, borderpad=4,
-                    ax=50, ay=-30,
-                )
-
-                # Etykieta z ceną startową
-                fig_tf.add_annotation(
-                    x=wartosci_p.index[0], y=wartosc_start,
-                    text=f"<b>${wartosc_start:,.2f}</b>",
-                    showarrow=True, arrowhead=0, arrowsize=1,
-                    arrowcolor="rgba(128,128,128,0.5)",
-                    bgcolor="rgba(128,128,128,0.7)", font=dict(color="white", size=10),
-                    borderpad=3, ax=-50, ay=20,
-                )
-
-                fig_tf.update_layout(
-                    **{**layout_base, "height": 400},
-                    xaxis=dict(showgrid=False, title=""),
-                    yaxis=dict(
-                        showgrid=True, gridcolor="rgba(128,128,128,0.15)",
-                        title="$", zeroline=False,
-                    ),
-                    showlegend=False,
-                )
-                st.plotly_chart(fig_tf, use_container_width=True)
-
-                # Podsumowanie pod wykresem
-                delta_dollars = wartosc_koniec - wartosc_start
-                d_kz = "delta-positive" if delta_dollars >= 0 else "delta-negative"
-                d_zn = "+" if delta_dollars >= 0 else ""
-                st.markdown(
-                    f'<div style="text-align:center;padding:8px;">'
-                    f'<span class="{d_kz}" style="font-size:1.1rem;font-weight:700;">'
-                    f'{d_zn}${abs(delta_dollars):,.2f} ({d_zn}{zmiana_total:.2f}%)</span>'
-                    f' · {selected_tf}'
-                    f'</div>',
-                    unsafe_allow_html=True
-                )
-            else:
-                st.info(f"⚠️ {t('no_positions', L)}") if not df_tf.empty else None
-        else:
-            st.info(f"⚠️ {t('no_positions', L)}")
-
-    # --- ZMIENNOŚĆ (ultra-compact, narrow column) ---
-    vol_col, _ = st.columns([1, 4])
-    with vol_col:
         st.markdown(f'<div class="section-header">{t("daily_volatility", L)}</div>', unsafe_allow_html=True)
         n_tickers = len(portfel_df)
-        vol_height = max(60, min(32 * n_tickers + 30, 180))
+        vol_height = max(80, min(32 * n_tickers + 30, 250))
         colors_vol = ["#10b981" if v >= 0 else "#ef4444" for v in portfel_df["Zmienność (%)"]]
         fig_vol = go.Figure(go.Bar(
             y=portfel_df["Ticker"], x=portfel_df["Zmienność (%)"],
