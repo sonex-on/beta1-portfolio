@@ -25,3 +25,6 @@ build/
 *.exe
 launcher.py
 portfel_dane.csv.enc
+
+# Logo cache
+assets/logos/

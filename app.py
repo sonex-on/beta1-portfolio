@@ -27,6 +27,10 @@ from statistics import (
 import re
 import random
 import numpy as np
+import base64
+
+from ocr_reader import extract_transactions_from_image
+from logo_fetcher import get_logo_html
 
 # =============================================================================
 # STAŁE
@@ -139,6 +143,32 @@ def zastosuj_motyw(ciemny: bool, paleta_nazwa: str):
         padding: 2px 7px; border-radius: 6px;
         letter-spacing: 0.8px; text-transform: uppercase;
         margin-left: 6px; vertical-align: middle;
+    }}
+
+    /* --- OCR Import Section --- */
+    .ocr-section {{
+        background: {stat_bg};
+        border: 1px dashed {k1}66;
+        border-radius: 12px;
+        padding: 14px;
+        margin: 8px 0;
+        transition: border-color 0.3s;
+    }}
+    .ocr-section:hover {{ border-color: {k1}; }}
+    .ocr-badge {{
+        display: inline-block;
+        background: linear-gradient(135deg, {k1}, {k2});
+        color: #fff; font-size: 0.55rem; font-weight: 800;
+        padding: 2px 6px; border-radius: 5px;
+        letter-spacing: 0.5px; text-transform: uppercase;
+        margin-left: 4px; vertical-align: middle;
+    }}
+    .ocr-result-header {{
+        font-size: 0.82rem; font-weight: 700;
+        color: #10b981; margin: 8px 0 4px;
+    }}
+    .logo-ticker {{
+        display: inline-flex; align-items: center;
     }}
 
     /* --- Streamlit Tab Overrides --- */
@@ -665,6 +695,98 @@ def main():
                     st.success(f"✅ {typ}: {il}× {tk} @ ${cn:.2f}")
                     st.rerun()
 
+        # =================================================================
+        # 📸 OCR IMPORT SECTION — Agent 2 (UI) + Agent 5 (INTEGRATOR)
+        # =================================================================
+        st.markdown("---")
+        st.markdown(f'{t("ocr_import_title", L)} <span class="ocr-badge">AI</span>', unsafe_allow_html=True)
+
+        # File uploader + camera input
+        ocr_tab1, ocr_tab2 = st.tabs([t("ocr_upload_label", L), t("ocr_camera_label", L)])
+        with ocr_tab1:
+            uploaded_file = st.file_uploader(
+                t("ocr_upload_label", L), type=["jpg", "jpeg", "png", "webp"],
+                key="ocr_upload", label_visibility="collapsed"
+            )
+        with ocr_tab2:
+            camera_file = st.camera_input(t("ocr_camera_label", L), key="ocr_camera", label_visibility="collapsed")
+
+        # Pick whichever input has data
+        active_image = uploaded_file or camera_file
+
+        if active_image:
+            # Show small preview
+            st.image(active_image, width=200, caption="📷")
+
+            # Analyze button
+            if st.button(t("ocr_analyze_btn", L), key="btn_ocr_analyze", use_container_width=True):
+                with st.spinner(t("ocr_analyzing", L)):
+                    try:
+                        img_bytes = active_image.getvalue()
+                        mime = active_image.type if hasattr(active_image, 'type') else "image/jpeg"
+                        results = extract_transactions_from_image(img_bytes, mime)
+                        st.session_state["_ocr_results"] = results
+                    except Exception as e:
+                        st.error(f'{t("ocr_error", L)}: {str(e)[:200]}')
+                        st.session_state["_ocr_results"] = []
+
+        # Show OCR results as editable table
+        if st.session_state.get("_ocr_results"):
+            results = st.session_state["_ocr_results"]
+            st.markdown(f'<div class="ocr-result-header">{t("ocr_found_n", L).format(len(results))}</div>', unsafe_allow_html=True)
+            st.caption(t("ocr_edit_hint", L))
+
+            # Build DataFrame for data_editor
+            buy_label = t("buy", L)
+            sell_label = t("sell", L)
+            df_ocr = pd.DataFrame({
+                t("ocr_select_col", L): [True] * len(results),
+                t("ocr_ticker_col", L): [r["ticker"] for r in results],
+                t("ocr_qty_col", L): [r["ilosc"] for r in results],
+                t("ocr_price_col", L): [r["cena_zakupu"] for r in results],
+                t("ocr_date_col", L): [r["data"] for r in results],
+                t("ocr_type_col", L): [buy_label if r["typ"] == "Kupno" else sell_label for r in results],
+            })
+
+            edited_df = st.data_editor(
+                df_ocr, use_container_width=True, hide_index=True,
+                num_rows="dynamic", key="ocr_editor",
+                column_config={
+                    t("ocr_select_col", L): st.column_config.CheckboxColumn(default=True),
+                    t("ocr_type_col", L): st.column_config.SelectboxColumn(options=[buy_label, sell_label]),
+                }
+            )
+
+            # Import / Cancel buttons
+            col_imp, col_can = st.columns(2)
+            with col_imp:
+                if st.button(t("ocr_import_btn", L), key="btn_ocr_import", use_container_width=True):
+                    if st.session_state.aktywny_portfel and edited_df is not None:
+                        selected = edited_df[edited_df[t("ocr_select_col", L)] == True]
+                        imported = 0
+                        for _, row in selected.iterrows():
+                            try:
+                                tk = str(row[t("ocr_ticker_col", L)]).strip().upper()
+                                il = float(row[t("ocr_qty_col", L)])
+                                cn = float(row[t("ocr_price_col", L)])
+                                dt = str(row[t("ocr_date_col", L)]).strip()
+                                typ_val = str(row[t("ocr_type_col", L)])
+                                typ_db = "Kupno" if typ_val == buy_label else "Sprzedaż"
+                                if tk and il > 0 and cn > 0:
+                                    dodaj_transakcje(db, uid, st.session_state.aktywny_portfel,
+                                        {"ticker": tk, "ilosc": il, "cena_zakupu": cn, "data": dt, "typ": typ_db})
+                                    imported += 1
+                            except (ValueError, TypeError):
+                                continue
+                        if imported > 0:
+                            st.success(t("ocr_success", L).format(imported))
+                            st.session_state["_ocr_results"] = []
+                            st.rerun()
+            with col_can:
+                if st.button(t("ocr_cancel_btn", L), key="btn_ocr_cancel", use_container_width=True):
+                    st.session_state["_ocr_results"] = []
+                    st.rerun()
+
         # Lista transakcji
         st.markdown("---")
         st.markdown(t("transactions", L))
@@ -1014,6 +1136,17 @@ def main():
 
     # --- TABELA PODSUMOWANIE ---
     st.markdown(f'<div class="section-header">{t("summary", L)}</div>', unsafe_allow_html=True)
+
+    # --- Logo column for ticker table ---
+    logo_col_html = []
+    for tk in portfel_df["Ticker"]:
+        logo = get_logo_html(tk, size=20)
+        logo_col_html.append(f'{logo}{tk}')
+    portfel_df_display = portfel_df.copy()
+    # Show logos above the dataframe as a visual row
+    logos_row = " ".join(f'<span class="logo-ticker">{get_logo_html(tk, 22)}<b>{tk}</b></span>&nbsp;&nbsp;' for tk in portfel_df["Ticker"])
+    st.markdown(f'<div style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">{logos_row}</div>', unsafe_allow_html=True)
+
     def kol_w(val):
         try:
             v = float(val)
