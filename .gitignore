@@ -2,6 +2,7 @@
 secret.key
 firebase_service_account.json
 firebase_web_config.json
+streamlit_secrets.toml
 *.enc
 
 # Python
