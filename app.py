@@ -931,7 +931,7 @@ def main():
     if not roi_df.empty and len(roi_df) > 1:
         wartosci_serie = pd.Series(roi_df["Wartość ($)"].values, index=pd.to_datetime(roi_df["Data"]))
         kapital_serie = pd.Series(roi_df["Kapitał ($)"].values, index=pd.to_datetime(roi_df["Data"]))
-        stats = oblicz_statystyki(wartosci_serie)
+        stats = oblicz_statystyki(wartosci_serie, kapital_serie=kapital_serie)
 
     # --- TABS ---
     tab_names = [

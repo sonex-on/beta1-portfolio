@@ -8,13 +8,14 @@ import pandas as pd
 from datetime import datetime
 
 
-def oblicz_statystyki(wartosci_portfela: pd.Series, risk_free_rate: float = 0.05) -> dict:
+def oblicz_statystyki(wartosci_portfela: pd.Series, risk_free_rate: float = 0.05, kapital_serie: pd.Series = None) -> dict:
     """
     Oblicza zaawansowane statystyki finansowe z serii wartości portfela.
 
     Args:
         wartosci_portfela: pd.Series z indeksem dat i wartościami portfela ($)
         risk_free_rate: roczna stopa wolna od ryzyka (domyślnie 5% — US T-bills)
+        kapital_serie: pd.Series z zainwestowanym kapitałem (opcjonalnie)
 
     Returns:
         dict z 12 metrykami finansowymi
@@ -39,12 +40,26 @@ def oblicz_statystyki(wartosci_portfela: pd.Series, risk_free_rate: float = 0.05
     n_days = (wartosci.index[-1] - wartosci.index[0]).days
     wystarczajaco_dlugi = n_days >= 60  # Min 60 dni do annualizacji
 
-    # --- 1. Total Return ---
-    total_return = (wartosci.iloc[-1] / wartosci.iloc[0] - 1) * 100
+    # --- 1. Total Return (based on invested capital if available) ---
+    if kapital_serie is not None and len(kapital_serie) > 0:
+        kapital_total = kapital_serie.iloc[-1]
+        if kapital_total > 0:
+            total_return = (wartosci.iloc[-1] / kapital_total - 1) * 100
+        else:
+            total_return = 0.0
+    else:
+        total_return = (wartosci.iloc[-1] / wartosci.iloc[0] - 1) * 100
 
     # --- 2. Annualised Return (CAGR) — tylko dla portfeli > 60 dni ---
     if wystarczajaco_dlugi and n_days > 0:
-        cagr = ((wartosci.iloc[-1] / wartosci.iloc[0]) ** (365.25 / n_days) - 1) * 100
+        if kapital_serie is not None and len(kapital_serie) > 0:
+            kapital_total = kapital_serie.iloc[-1]
+            if kapital_total > 0:
+                cagr = ((wartosci.iloc[-1] / kapital_total) ** (365.25 / n_days) - 1) * 100
+            else:
+                cagr = 0.0
+        else:
+            cagr = ((wartosci.iloc[-1] / wartosci.iloc[0]) ** (365.25 / n_days) - 1) * 100
         # Ogranicz do rozsądnych wartości
         cagr = max(-99.99, min(cagr, 9999.99))
     else:
