@@ -960,6 +960,29 @@ def main():
                 fill="tozeroy", fillcolor=hex_to_rgba(kolor_g, 0.08),
                 hovertemplate="<b>%{x|%b %d, '%y}</b><br>%{y:+.2f}%<extra></extra>",
             ))
+
+            # --- Benchmark overlay ---
+            bench_colors = {"S&P 500": "#3b82f6", "WIG20": "#f59e0b"}
+            bm_c1, bm_c2 = st.columns(2)
+            with bm_c1:
+                show_sp = st.checkbox("S&P 500", value=True, key="bench_sp500")
+            with bm_c2:
+                show_wig = st.checkbox("WIG20", value=True, key="bench_wig20")
+
+            for bm_name, bm_ticker in _BENCHMARKS.items():
+                show = show_sp if bm_name == "S&P 500" else show_wig
+                if show:
+                    bm_growth = pobierz_benchmark_growth(
+                        bm_ticker, growth.index[0], growth.index[-1] + timedelta(days=1)
+                    )
+                    if not bm_growth.empty:
+                        fig.add_trace(go.Scatter(
+                            x=bm_growth.index, y=bm_growth.values,
+                            mode="lines", name=bm_name,
+                            line=dict(color=bench_colors[bm_name], width=1.5, dash="dash"),
+                            hovertemplate=f"<b>{bm_name}</b><br>" + "%{x|%b %d, '%y}<br>%{y:+.2f}%<extra></extra>",
+                        ))
+
             fig.add_hline(y=0, line_dash="dash", line_color="rgba(128,128,128,0.4)", line_width=1)
             # Endpoint annotation
             fig.add_annotation(
@@ -972,7 +995,7 @@ def main():
                 xaxis=dict(showgrid=False, title=""),
                 yaxis=dict(showgrid=True, gridcolor=grid_col, title="%",
                            zeroline=True, zerolinecolor="rgba(128,128,128,0.4)"),
-                showlegend=False)
+                showlegend=True, legend=dict(orientation="h", y=-0.12, x=0.5, xanchor="center"))
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info(t("no_data_for_tab", L))
