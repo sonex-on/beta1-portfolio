@@ -656,145 +656,148 @@ def main():
                 st.rerun()
 
     # =========================================================================
-    # EXPANDABLE SECTIONS
+    # ACTION TABS — Transactions / OCR / Settings
     # =========================================================================
-    exp_c1, exp_c2, exp_c3 = st.columns(3)
+    tab_tx, tab_ocr, tab_cfg = st.tabs([
+        t("nav_transactions", L), t("nav_ocr_import", L), t("nav_settings", L)
+    ])
 
-    with exp_c1:
-        with st.expander(t("nav_transactions", L), expanded=False):
-            buy_label = t("buy", L)
-            sell_label = t("sell", L)
+    with tab_tx:
+        buy_label = t("buy", L)
+        sell_label = t("sell", L)
 
-            opcje_tickerow = [t("type_manually", L)] + list(TICKER_DATABASE.keys())
-            wybrany_ticker = st.selectbox(
-                t("ticker_search", L), opcje_tickerow, index=0,
-                key="ticker_search", help=t("ticker_search_help", L)
-            )
-            ticker_z_bazy = TICKER_DATABASE.get(wybrany_ticker, "") if wybrany_ticker != t("type_manually", L) else ""
+        opcje_tickerow = [t("type_manually", L)] + list(TICKER_DATABASE.keys())
+        wybrany_ticker = st.selectbox(
+            t("ticker_search", L), opcje_tickerow, index=0,
+            key="ticker_search", help=t("ticker_search_help", L)
+        )
+        ticker_z_bazy = TICKER_DATABASE.get(wybrany_ticker, "") if wybrany_ticker != t("type_manually", L) else ""
 
-            with st.form("form_tx", clear_on_submit=True):
+        with st.form("form_tx", clear_on_submit=True):
+            fc1, fc2 = st.columns(2)
+            with fc1:
                 ticker_in = st.text_input(t("ticker", L), value=ticker_z_bazy, placeholder="e.g. AAPL, CDR.WA")
                 typ = st.radio(t("type", L), [buy_label, sell_label], horizontal=True)
                 ilosc = st.number_input(t("quantity", L), min_value=0.0001, value=1.0, step=0.1, format="%.4f")
+            with fc2:
                 cena = st.number_input(t("purchase_price", L), min_value=0.01, value=100.0, step=0.01, format="%.2f")
                 data_tx = st.date_input(t("date", L), value=date.today())
-                dodaj = st.form_submit_button(t("add_btn", L), use_container_width=True)
+            dodaj = st.form_submit_button(t("add_btn", L), use_container_width=True)
 
-                if dodaj and st.session_state.aktywny_portfel:
-                    tk = waliduj_ticker(ticker_in)
-                    il, cn = waliduj_liczbe(ilosc), waliduj_liczbe(cena)
-                    if not tk: st.error(t("invalid_ticker", L))
-                    elif il <= 0: st.error(t("quantity_gt0", L))
-                    elif cn <= 0: st.error(t("price_gt0", L))
-                    else:
-                        typ_db = "Kupno" if typ == buy_label else "Sprzedaż"
-                        if typ_db == "Sprzedaż":
-                            trans_list = pobierz_transakcje(db, uid, st.session_state.aktywny_portfel)
-                            posiadane = sum(float(tx["ilosc"]) if tx["typ"]=="Kupno" else -float(tx["ilosc"])
-                                            for tx in trans_list if tx["ticker"] == tk)
-                            if il > posiadane:
-                                st.error(f"{t('only_have', L)} {posiadane:.4f} {tk}"); st.stop()
-                        dodaj_transakcje(db, uid, st.session_state.aktywny_portfel,
-                            {"ticker": tk, "ilosc": il, "cena_zakupu": cn, "data": str(data_tx), "typ": typ_db})
-                        st.success(f"✅ {typ}: {il}× {tk} @ ${cn:.2f}")
-                        st.rerun()
-
-            # --- Transaction list ---
-            st.markdown("---")
-            st.markdown(t("transactions", L))
-            if st.session_state.aktywny_portfel:
-                transakcje_lista = pobierz_transakcje(db, uid, st.session_state.aktywny_portfel)
-                if transakcje_lista:
-                    for tx in transakcje_lista:
-                        emoji = "🟢" if tx["typ"] == "Kupno" else "🔴"
-                        typ_display = t("buy", L) if tx["typ"] == "Kupno" else t("sell", L)
-                        tc1, tc2 = st.columns([4, 1])
-                        with tc1: st.caption(f"{emoji} {typ_display}: {tx['ilosc']}× {tx['ticker']} @ ${float(tx['cena_zakupu']):.2f}")
-                        with tc2:
-                            if st.button("🗑️", key=f"del_{tx['id']}"):
-                                usun_transakcje(db, uid, st.session_state.aktywny_portfel, tx["id"])
-                                st.rerun()
+            if dodaj and st.session_state.aktywny_portfel:
+                tk = waliduj_ticker(ticker_in)
+                il, cn = waliduj_liczbe(ilosc), waliduj_liczbe(cena)
+                if not tk: st.error(t("invalid_ticker", L))
+                elif il <= 0: st.error(t("quantity_gt0", L))
+                elif cn <= 0: st.error(t("price_gt0", L))
                 else:
-                    st.info(t("no_transactions", L))
+                    typ_db = "Kupno" if typ == buy_label else "Sprzedaż"
+                    if typ_db == "Sprzedaż":
+                        trans_list = pobierz_transakcje(db, uid, st.session_state.aktywny_portfel)
+                        posiadane = sum(float(tx["ilosc"]) if tx["typ"]=="Kupno" else -float(tx["ilosc"])
+                                        for tx in trans_list if tx["ticker"] == tk)
+                        if il > posiadane:
+                            st.error(f"{t('only_have', L)} {posiadane:.4f} {tk}"); st.stop()
+                    dodaj_transakcje(db, uid, st.session_state.aktywny_portfel,
+                        {"ticker": tk, "ilosc": il, "cena_zakupu": cn, "data": str(data_tx), "typ": typ_db})
+                    st.success(f"✅ {typ}: {il}× {tk} @ ${cn:.2f}")
+                    st.rerun()
 
-    with exp_c2:
-        with st.expander(t("nav_ocr_import", L), expanded=False):
-            ocr_tab1, ocr_tab2 = st.tabs([t("ocr_upload_label", L), t("ocr_camera_label", L)])
-            with ocr_tab1:
-                uploaded_file = st.file_uploader(
-                    t("ocr_upload_label", L), type=["jpg", "jpeg", "png", "webp"],
-                    key="ocr_upload", label_visibility="collapsed"
-                )
-            with ocr_tab2:
-                camera_file = st.camera_input(t("ocr_camera_label", L), key="ocr_camera", label_visibility="collapsed")
+        # --- Transaction list ---
+        st.markdown(t("transactions", L))
+        if st.session_state.aktywny_portfel:
+            transakcje_lista = pobierz_transakcje(db, uid, st.session_state.aktywny_portfel)
+            if transakcje_lista:
+                for tx in transakcje_lista:
+                    emoji = "🟢" if tx["typ"] == "Kupno" else "🔴"
+                    typ_display = t("buy", L) if tx["typ"] == "Kupno" else t("sell", L)
+                    tc1, tc2 = st.columns([4, 1])
+                    with tc1: st.caption(f"{emoji} {typ_display}: {tx['ilosc']}× {tx['ticker']} @ ${float(tx['cena_zakupu']):.2f}")
+                    with tc2:
+                        if st.button("🗑️", key=f"del_{tx['id']}"):
+                            usun_transakcje(db, uid, st.session_state.aktywny_portfel, tx["id"])
+                            st.rerun()
+            else:
+                st.info(t("no_transactions", L))
 
-            active_image = uploaded_file or camera_file
-            if active_image:
-                st.image(active_image, width=200, caption="📷")
-                if st.button(t("ocr_analyze_btn", L), key="btn_ocr_analyze", use_container_width=True):
-                    with st.spinner(t("ocr_analyzing", L)):
-                        try:
-                            img_bytes = active_image.getvalue()
-                            mime = active_image.type if hasattr(active_image, 'type') else "image/jpeg"
-                            results = extract_transactions_from_image(img_bytes, mime)
-                            st.session_state["_ocr_results"] = results
-                        except Exception as e:
-                            st.error(f'{t("ocr_error", L)}: {str(e)[:200]}')
-                            st.session_state["_ocr_results"] = []
+    with tab_ocr:
+        ocr_tab1, ocr_tab2 = st.tabs([t("ocr_upload_label", L), t("ocr_camera_label", L)])
+        with ocr_tab1:
+            uploaded_file = st.file_uploader(
+                t("ocr_upload_label", L), type=["jpg", "jpeg", "png", "webp"],
+                key="ocr_upload", label_visibility="collapsed"
+            )
+        with ocr_tab2:
+            camera_file = st.camera_input(t("ocr_camera_label", L), key="ocr_camera", label_visibility="collapsed")
 
-            if st.session_state.get("_ocr_results"):
-                ocr_results = st.session_state["_ocr_results"]
-                st.markdown(f'<div class="ocr-result-header">{t("ocr_found_n", L).format(len(ocr_results))}</div>', unsafe_allow_html=True)
-                st.caption(t("ocr_edit_hint", L))
-                ocr_buy = t("buy", L)
-                ocr_sell = t("sell", L)
-                df_ocr = pd.DataFrame({
-                    t("ocr_select_col", L): [True] * len(ocr_results),
-                    t("ocr_ticker_col", L): [r["ticker"] for r in ocr_results],
-                    t("ocr_qty_col", L): [r["ilosc"] for r in ocr_results],
-                    t("ocr_price_col", L): [r["cena_zakupu"] for r in ocr_results],
-                    t("ocr_date_col", L): [r["data"] for r in ocr_results],
-                    t("ocr_type_col", L): [ocr_buy if r["typ"] == "Kupno" else ocr_sell for r in ocr_results],
-                })
-                edited_df = st.data_editor(
-                    df_ocr, use_container_width=True, hide_index=True,
-                    num_rows="dynamic", key="ocr_editor",
-                    column_config={
-                        t("ocr_select_col", L): st.column_config.CheckboxColumn(default=True),
-                        t("ocr_type_col", L): st.column_config.SelectboxColumn(options=[ocr_buy, ocr_sell]),
-                    }
-                )
-                col_imp, col_can = st.columns(2)
-                with col_imp:
-                    if st.button(t("ocr_import_btn", L), key="btn_ocr_import", use_container_width=True):
-                        if st.session_state.aktywny_portfel and edited_df is not None:
-                            selected = edited_df[edited_df[t("ocr_select_col", L)] == True]
-                            imported = 0
-                            for _, row in selected.iterrows():
-                                try:
-                                    tk = str(row[t("ocr_ticker_col", L)]).strip().upper()
-                                    il = float(row[t("ocr_qty_col", L)])
-                                    cn = float(row[t("ocr_price_col", L)])
-                                    dt = str(row[t("ocr_date_col", L)]).strip()
-                                    typ_val = str(row[t("ocr_type_col", L)])
-                                    typ_db = "Kupno" if typ_val == ocr_buy else "Sprzedaż"
-                                    if tk and il > 0 and cn > 0:
-                                        dodaj_transakcje(db, uid, st.session_state.aktywny_portfel,
-                                            {"ticker": tk, "ilosc": il, "cena_zakupu": cn, "data": dt, "typ": typ_db})
-                                        imported += 1
-                                except (ValueError, TypeError):
-                                    continue
-                            if imported > 0:
-                                st.success(t("ocr_success", L).format(imported))
-                                st.session_state["_ocr_results"] = []
-                                st.rerun()
-                with col_can:
-                    if st.button(t("ocr_cancel_btn", L), key="btn_ocr_cancel", use_container_width=True):
+        active_image = uploaded_file or camera_file
+        if active_image:
+            st.image(active_image, width=200, caption="📷")
+            if st.button(t("ocr_analyze_btn", L), key="btn_ocr_analyze", use_container_width=True):
+                with st.spinner(t("ocr_analyzing", L)):
+                    try:
+                        img_bytes = active_image.getvalue()
+                        mime = active_image.type if hasattr(active_image, 'type') else "image/jpeg"
+                        results = extract_transactions_from_image(img_bytes, mime)
+                        st.session_state["_ocr_results"] = results
+                    except Exception as e:
+                        st.error(f'{t("ocr_error", L)}: {str(e)[:200]}')
                         st.session_state["_ocr_results"] = []
-                        st.rerun()
 
-    with exp_c3:
-        with st.expander(t("nav_settings", L), expanded=False):
+        if st.session_state.get("_ocr_results"):
+            ocr_results = st.session_state["_ocr_results"]
+            st.markdown(f'<div class="ocr-result-header">{t("ocr_found_n", L).format(len(ocr_results))}</div>', unsafe_allow_html=True)
+            st.caption(t("ocr_edit_hint", L))
+            ocr_buy = t("buy", L)
+            ocr_sell = t("sell", L)
+            df_ocr = pd.DataFrame({
+                t("ocr_select_col", L): [True] * len(ocr_results),
+                t("ocr_ticker_col", L): [r["ticker"] for r in ocr_results],
+                t("ocr_qty_col", L): [r["ilosc"] for r in ocr_results],
+                t("ocr_price_col", L): [r["cena_zakupu"] for r in ocr_results],
+                t("ocr_date_col", L): [r["data"] for r in ocr_results],
+                t("ocr_type_col", L): [ocr_buy if r["typ"] == "Kupno" else ocr_sell for r in ocr_results],
+            })
+            edited_df = st.data_editor(
+                df_ocr, use_container_width=True, hide_index=True,
+                num_rows="dynamic", key="ocr_editor",
+                column_config={
+                    t("ocr_select_col", L): st.column_config.CheckboxColumn(default=True),
+                    t("ocr_type_col", L): st.column_config.SelectboxColumn(options=[ocr_buy, ocr_sell]),
+                }
+            )
+            col_imp, col_can = st.columns(2)
+            with col_imp:
+                if st.button(t("ocr_import_btn", L), key="btn_ocr_import", use_container_width=True):
+                    if st.session_state.aktywny_portfel and edited_df is not None:
+                        selected = edited_df[edited_df[t("ocr_select_col", L)] == True]
+                        imported = 0
+                        for _, row in selected.iterrows():
+                            try:
+                                tk = str(row[t("ocr_ticker_col", L)]).strip().upper()
+                                il = float(row[t("ocr_qty_col", L)])
+                                cn = float(row[t("ocr_price_col", L)])
+                                dt = str(row[t("ocr_date_col", L)]).strip()
+                                typ_val = str(row[t("ocr_type_col", L)])
+                                typ_db = "Kupno" if typ_val == ocr_buy else "Sprzedaż"
+                                if tk and il > 0 and cn > 0:
+                                    dodaj_transakcje(db, uid, st.session_state.aktywny_portfel,
+                                        {"ticker": tk, "ilosc": il, "cena_zakupu": cn, "data": dt, "typ": typ_db})
+                                    imported += 1
+                            except (ValueError, TypeError):
+                                continue
+                        if imported > 0:
+                            st.success(t("ocr_success", L).format(imported))
+                            st.session_state["_ocr_results"] = []
+                            st.rerun()
+            with col_can:
+                if st.button(t("ocr_cancel_btn", L), key="btn_ocr_cancel", use_container_width=True):
+                    st.session_state["_ocr_results"] = []
+                    st.rerun()
+
+    with tab_cfg:
+        cfg_c1, cfg_c2 = st.columns(2)
+        with cfg_c1:
             # --- Theme ---
             st.session_state.motyw_ciemny = st.toggle(t("dark_mode", L), value=st.session_state.motyw_ciemny)
             st.session_state.paleta = st.selectbox(t("palette", L), list(PALETY_KOLOROW.keys()),
@@ -803,8 +806,8 @@ def main():
                 f'border-radius:50%;background:{c};margin:2px;"></span>' for c in PALETY_KOLOROW[st.session_state.paleta])
             st.markdown(kolory_html, unsafe_allow_html=True)
 
+        with cfg_c2:
             # --- Portfolio management ---
-            st.markdown("---")
             st.markdown(t("portfolios", L))
             col_np1, col_np2 = st.columns([3, 1])
             with col_np1:
@@ -823,7 +826,8 @@ def main():
                     st.session_state.aktywny_portfel = None
                     st.rerun()
 
-
+            buy_label = t("buy", L)
+            sell_label = t("sell", L)
     # =========================================================================
     # DASHBOARD
     # =========================================================================
