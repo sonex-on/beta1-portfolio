@@ -1216,8 +1216,8 @@ def main():
 
     # ===================== TAB 2: GROWTH (cumulative %) =====================
     with tab2:
-        if wartosci_serie is not None and len(wartosci_serie) > 1:
-            growth = oblicz_growth_serie(wartosci_serie)
+        if not roi_df.empty and len(roi_df) > 1:
+            growth = pd.Series(roi_df["ROI (%)"].values, index=pd.to_datetime(roi_df["Data"]))
             fig = go.Figure()
             kolor_g = "#10b981" if growth.iloc[-1] >= 0 else "#ef4444"
             fig.add_trace(go.Scatter(
