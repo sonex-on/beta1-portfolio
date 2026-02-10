@@ -149,9 +149,9 @@ TRANSLATIONS = {
         "ocr_type_col": "Typ",
 
         # --- Navbar ---
-        "nav_transactions": "📝 Transakcje",
-        "nav_ocr_import": "📸 Import OCR",
-        "nav_settings": "⚙️ Ustawienia",
+        "nav_transactions": "Transakcje",
+        "nav_ocr_import": "Import OCR",
+        "nav_settings": "Ustawienia",
     },
 
     "en": {
@@ -300,9 +300,9 @@ TRANSLATIONS = {
         "ocr_type_col": "Type",
 
         # --- Navbar ---
-        "nav_transactions": "📝 Transactions",
-        "nav_ocr_import": "📸 OCR Import",
-        "nav_settings": "⚙️ Settings",
+        "nav_transactions": "Transactions",
+        "nav_ocr_import": "OCR Import",
+        "nav_settings": "Settings",
     },
 }
 
