@@ -732,9 +732,9 @@ def main():
     # =========================================================================
     # ACTION TABS — Transactions / OCR / Settings
     # =========================================================================
-    tab_tx, tab_imp, tab_div, tab_cal, tab_corr, tab_cfg = st.tabs([
+    tab_tx, tab_imp, tab_div, tab_cal, tab_corr, tab_ind, tab_cfg = st.tabs([
         t("nav_transactions", L), t("nav_import", L), t("nav_dividends", L),
-        t("nav_calendar", L), t("nav_correlation", L), t("nav_settings", L)
+        t("nav_calendar", L), t("nav_correlation", L), t("tab_indicators", L), t("nav_settings", L)
     ])
 
     with tab_tx:
@@ -1109,6 +1109,181 @@ def main():
                 st.info(t("corr_no_data", L))
         else:
             st.info(t("corr_no_data", L))
+
+    # ===================== TAB: INDICATORS =====================
+    with tab_ind:
+        # Ticker selection
+        ind_c1, ind_c2 = st.columns([1, 1])
+        with ind_c1:
+            portfolio_tickers = []
+            if st.session_state.aktywny_portfel:
+                tx_l = pobierz_transakcje(db, uid, st.session_state.aktywny_portfel)
+                portfolio_tickers = sorted(set(tx["ticker"] for tx in tx_l)) if tx_l else []
+            ind_ticker = st.selectbox(t("ind_select_ticker", L), portfolio_tickers if portfolio_tickers else ["AAPL"], key="ind_ticker")
+        with ind_c2:
+            custom_tk = st.text_input(t("ind_custom_ticker", L), key="ind_custom", placeholder="TSLA, BTC-USD...")
+            if custom_tk.strip():
+                ind_ticker = custom_tk.strip().upper()
+
+        # Timeframe buttons
+        tf_options = {"1D": 1, "5D": 5, "1M": 30, "3M": 90, "6M": 180, "1Y": 365}
+        tf_cols = st.columns(len(tf_options))
+        if "ind_tf" not in st.session_state:
+            st.session_state.ind_tf = "3M"
+        for i, (label, _) in enumerate(tf_options.items()):
+            with tf_cols[i]:
+                if st.button(label, key=f"ind_tf_{label}", use_container_width=True,
+                             type="primary" if st.session_state.ind_tf == label else "secondary"):
+                    st.session_state.ind_tf = label
+                    st.rerun()
+        tf_days = tf_options[st.session_state.ind_tf]
+
+        # Indicator selection
+        INDICATORS = ["SMA 20", "SMA 50", "SMA 200", "EMA 12", "EMA 26", "Bollinger Bands", "RSI", "MACD", "Volume"]
+        selected_ind = st.multiselect(t("ind_select_indicators", L), INDICATORS, default=["SMA 20", "RSI"], key="ind_sel")
+
+        if ind_ticker:
+            with st.spinner("⏳"):
+                end_dt = date.today()
+                start_dt = end_dt - timedelta(days=tf_days + 220)  # extra for SMA 200
+                df = yf.download(ind_ticker, start=start_dt, end=end_dt, progress=False)
+                if df.empty or len(df) < 2:
+                    st.warning(t("ind_no_data", L))
+                else:
+                    close = df["Close"].squeeze()
+                    high = df["High"].squeeze()
+                    low = df["Low"].squeeze()
+                    volume = df["Volume"].squeeze()
+
+                    # Calculate indicators
+                    calc = {}
+                    if "SMA 20" in selected_ind: calc["SMA 20"] = close.rolling(20).mean()
+                    if "SMA 50" in selected_ind: calc["SMA 50"] = close.rolling(50).mean()
+                    if "SMA 200" in selected_ind: calc["SMA 200"] = close.rolling(200).mean()
+                    if "EMA 12" in selected_ind: calc["EMA 12"] = close.ewm(span=12).mean()
+                    if "EMA 26" in selected_ind: calc["EMA 26"] = close.ewm(span=26).mean()
+                    if "Bollinger Bands" in selected_ind:
+                        sma20 = close.rolling(20).mean()
+                        std20 = close.rolling(20).std()
+                        calc["BB Upper"] = sma20 + 2 * std20
+                        calc["BB Lower"] = sma20 - 2 * std20
+                        calc["BB Mid"] = sma20
+                    rsi_data = None
+                    if "RSI" in selected_ind:
+                        delta = close.diff()
+                        gain = delta.where(delta > 0, 0).rolling(14).mean()
+                        loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+                        rs = gain / loss
+                        rsi_data = 100 - (100 / (1 + rs))
+                    macd_data = None
+                    macd_signal = None
+                    if "MACD" in selected_ind:
+                        ema12 = close.ewm(span=12).mean()
+                        ema26 = close.ewm(span=26).mean()
+                        macd_data = ema12 - ema26
+                        macd_signal = macd_data.ewm(span=9).mean()
+
+                    # Trim to requested timeframe
+                    trim_start = end_dt - timedelta(days=tf_days)
+                    close = close[close.index >= str(trim_start)]
+                    high = high[high.index >= str(trim_start)]
+                    low = low[low.index >= str(trim_start)]
+                    volume = volume[volume.index >= str(trim_start)]
+                    for k in calc: calc[k] = calc[k][calc[k].index >= str(trim_start)]
+                    if rsi_data is not None: rsi_data = rsi_data[rsi_data.index >= str(trim_start)]
+                    if macd_data is not None:
+                        macd_data = macd_data[macd_data.index >= str(trim_start)]
+                        macd_signal = macd_signal[macd_signal.index >= str(trim_start)]
+
+                    # Determine subplot layout
+                    n_sub = 1
+                    sub_map = {}
+                    if "Volume" in selected_ind: n_sub += 1; sub_map["Volume"] = n_sub
+                    if "RSI" in selected_ind: n_sub += 1; sub_map["RSI"] = n_sub
+                    if "MACD" in selected_ind: n_sub += 1; sub_map["MACD"] = n_sub
+
+                    heights = [0.5] + [0.5 / max(n_sub - 1, 1)] * (n_sub - 1) if n_sub > 1 else [1]
+                    from plotly.subplots import make_subplots
+                    fig = make_subplots(rows=n_sub, cols=1, shared_xaxes=True,
+                                        vertical_spacing=0.03, row_heights=heights)
+
+                    is_dark = st.session_state.motyw_ciemny
+                    font_col = "#FAFAFA" if is_dark else "#1A1A2E"
+                    bg_col = "rgba(0,0,0,0)"
+
+                    # Candlestick
+                    fig.add_trace(go.Candlestick(
+                        x=close.index, open=df.loc[close.index, "Open"].squeeze(),
+                        high=high, low=low, close=close, name=ind_ticker,
+                        increasing_line_color="#10b981", decreasing_line_color="#ef4444",
+                    ), row=1, col=1)
+
+                    # Overlay indicators on price chart
+                    overlay_colors = {"SMA 20": "#3b82f6", "SMA 50": "#f59e0b", "SMA 200": "#ef4444",
+                                      "EMA 12": "#8b5cf6", "EMA 26": "#ec4899"}
+                    for ind_name, series in calc.items():
+                        if ind_name in overlay_colors:
+                            fig.add_trace(go.Scatter(
+                                x=series.index, y=series.values, mode="lines",
+                                name=ind_name, line=dict(color=overlay_colors[ind_name], width=1.2),
+                            ), row=1, col=1)
+                    # Bollinger Bands
+                    if "BB Upper" in calc:
+                        for bb_key, bb_col, bb_dash in [("BB Upper", "#60a5fa", "dot"), ("BB Lower", "#60a5fa", "dot"), ("BB Mid", "#60a5fa", "dash")]:
+                            fig.add_trace(go.Scatter(
+                                x=calc[bb_key].index, y=calc[bb_key].values, mode="lines",
+                                name=bb_key, line=dict(color=bb_col, width=1, dash=bb_dash),
+                            ), row=1, col=1)
+
+                    # Volume subplot
+                    if "Volume" in sub_map:
+                        colors = ["#10b981" if c >= o else "#ef4444"
+                                  for c, o in zip(close.values, df.loc[close.index, "Open"].squeeze().values)]
+                        fig.add_trace(go.Bar(
+                            x=volume.index, y=volume.values, name="Volume",
+                            marker_color=colors, opacity=0.6,
+                        ), row=sub_map["Volume"], col=1)
+
+                    # RSI subplot
+                    if "RSI" in sub_map and rsi_data is not None:
+                        fig.add_trace(go.Scatter(
+                            x=rsi_data.index, y=rsi_data.values, mode="lines",
+                            name="RSI", line=dict(color="#f59e0b", width=1.5),
+                        ), row=sub_map["RSI"], col=1)
+                        fig.add_hline(y=70, line_dash="dot", line_color="rgba(239,68,68,0.5)", row=sub_map["RSI"], col=1)
+                        fig.add_hline(y=30, line_dash="dot", line_color="rgba(16,185,129,0.5)", row=sub_map["RSI"], col=1)
+                        fig.update_yaxes(range=[0, 100], row=sub_map["RSI"], col=1)
+
+                    # MACD subplot
+                    if "MACD" in sub_map and macd_data is not None:
+                        fig.add_trace(go.Scatter(
+                            x=macd_data.index, y=macd_data.values, mode="lines",
+                            name="MACD", line=dict(color="#3b82f6", width=1.5),
+                        ), row=sub_map["MACD"], col=1)
+                        fig.add_trace(go.Scatter(
+                            x=macd_signal.index, y=macd_signal.values, mode="lines",
+                            name="Signal", line=dict(color="#ef4444", width=1, dash="dash"),
+                        ), row=sub_map["MACD"], col=1)
+                        histogram = macd_data - macd_signal
+                        hist_colors = ["#10b981" if v >= 0 else "#ef4444" for v in histogram.values]
+                        fig.add_trace(go.Bar(
+                            x=histogram.index, y=histogram.values, name="Histogram",
+                            marker_color=hist_colors, opacity=0.4,
+                        ), row=sub_map["MACD"], col=1)
+
+                    total_h = 400 + (n_sub - 1) * 150
+                    fig.update_layout(
+                        height=total_h, paper_bgcolor=bg_col, plot_bgcolor=bg_col,
+                        font=dict(color=font_col, family="Inter"), showlegend=True,
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10)),
+                        margin=dict(l=10, r=10, t=30, b=10),
+                        xaxis_rangeslider_visible=False,
+                    )
+                    for i in range(1, n_sub + 1):
+                        fig.update_xaxes(gridcolor="rgba(128,128,128,0.1)", row=i, col=1)
+                        fig.update_yaxes(gridcolor="rgba(128,128,128,0.1)", row=i, col=1)
+
+                    st.plotly_chart(fig, use_container_width=True)
 
     with tab_cfg:
         cfg_c1, cfg_c2 = st.columns(2)

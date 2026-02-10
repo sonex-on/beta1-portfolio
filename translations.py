@@ -174,6 +174,13 @@ TRANSLATIONS = {
         "cal_earnings": "Wyniki finansowe",
         "cal_no_events": "Brak nadchodzących wydarzeń",
 
+        # --- Indicators ---
+        "tab_indicators": "📉 Indykatory",
+        "ind_select_ticker": "Wybierz spółkę",
+        "ind_custom_ticker": "Lub wpisz ticker",
+        "ind_select_indicators": "Wybierz indykatory",
+        "ind_no_data": "Brak danych dla tego tickera",
+
         # --- CSV Import ---
         "csv_upload": "Wgraj plik CSV",
         "csv_broker": "Wybierz brokera",
@@ -365,6 +372,13 @@ TRANSLATIONS = {
         "cal_event": "Event",
         "cal_earnings": "Earnings Report",
         "cal_no_events": "No upcoming events",
+
+        # --- Indicators ---
+        "tab_indicators": "📉 Indicators",
+        "ind_select_ticker": "Select stock",
+        "ind_custom_ticker": "Or enter ticker",
+        "ind_select_indicators": "Select indicators",
+        "ind_no_data": "No data for this ticker",
 
         # --- CSV Import ---
         "csv_upload": "Upload CSV file",
