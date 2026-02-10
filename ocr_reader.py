@@ -6,6 +6,7 @@
 
 import json
 import re
+import os
 import streamlit as st
 from datetime import date
 
@@ -19,13 +20,55 @@ def _get_client():
     if _genai_client is None:
         from google import genai
         api_key = None
-        # 1) st.secrets
+
+        # 1) st.secrets — top-level
         try:
             api_key = st.secrets.get("gemini_api_key")
         except Exception:
             pass
+
+        # 2) st.secrets — nested in [firebase_service_account]
         if not api_key:
-            raise ValueError("Brak klucza Gemini API! Dodaj gemini_api_key do streamlit_secrets.toml")
+            try:
+                api_key = st.secrets["firebase_service_account"].get("gemini_api_key")
+            except Exception:
+                pass
+
+        # 3) Fallback: read from local streamlit_secrets.toml directly
+        if not api_key:
+            try:
+                import tomllib
+            except ImportError:
+                try:
+                    import tomli as tomllib
+                except ImportError:
+                    tomllib = None
+            if tomllib:
+                secrets_path = os.path.join(
+                    os.path.dirname(os.path.abspath(__file__)),
+                    "streamlit_secrets.toml",
+                )
+                if os.path.exists(secrets_path):
+                    try:
+                        with open(secrets_path, "rb") as f:
+                            local_secrets = tomllib.load(f)
+                        # Check top-level first, then nested
+                        api_key = local_secrets.get("gemini_api_key")
+                        if not api_key:
+                            fsa = local_secrets.get("firebase_service_account", {})
+                            api_key = fsa.get("gemini_api_key")
+                    except Exception:
+                        pass
+
+        # 4) Fallback: environment variable
+        if not api_key:
+            api_key = os.environ.get("GEMINI_API_KEY")
+
+        if not api_key:
+            raise ValueError(
+                "Brak klucza Gemini API! Dodaj gemini_api_key do "
+                ".streamlit/secrets.toml lub streamlit_secrets.toml"
+            )
         _genai_client = genai.Client(api_key=api_key)
     return _genai_client
 
@@ -73,6 +116,8 @@ def extract_transactions_from_image(image_bytes: bytes, mime_type: str = "image/
         List of dicts with keys: ticker, ilosc, cena_zakupu, data, typ
         Empty list if no transactions found or on error.
     """
+    from google.genai import types
+
     client = _get_client()
     
     today_str = date.today().isoformat()
@@ -82,13 +127,13 @@ def extract_transactions_from_image(image_bytes: bytes, mime_type: str = "image/
         response = client.models.generate_content(
             model="gemini-2.0-flash",
             contents=[
-                {
-                    "role": "user",
-                    "parts": [
-                        {"inline_data": {"mime_type": mime_type, "data": image_bytes}},
-                        {"text": prompt},
+                types.Content(
+                    role="user",
+                    parts=[
+                        types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
+                        types.Part.from_text(text=prompt),
                     ],
-                }
+                )
             ],
         )
         
