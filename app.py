@@ -968,23 +968,77 @@ def main():
 
     # ===================== TAB: CALENDAR =====================
     with tab_cal:
+        # Search bar for any ticker
+        cal_search = st.text_input("🔍", placeholder="AAPL, MSFT, CDR.WA...", key="cal_search", label_visibility="collapsed")
+
+        # Collect tickers: portfolio + searched
+        cal_tickers = []
         if st.session_state.aktywny_portfel:
             tx_list = pobierz_transakcje(db, uid, st.session_state.aktywny_portfel)
-            tickers_in = list(set(tx["ticker"] for tx in tx_list)) if tx_list else []
-            if tickers_in:
-                all_events = []
-                for tk in tickers_in:
-                    events = pobierz_kalendarz(tk)
-                    for ev in events:
+            cal_tickers = list(set(tx["ticker"] for tx in tx_list)) if tx_list else []
+
+        if cal_search.strip():
+            extra = [s.strip().upper() for s in cal_search.split(",") if s.strip()]
+            cal_tickers = list(set(cal_tickers + extra))
+
+        if cal_tickers:
+            all_events = []
+            for tk in cal_tickers:
+                try:
+                    ticker_obj = yf.Ticker(tk)
+                    info = ticker_obj.info
+                    name = info.get("shortName", tk)
+
+                    # Earnings
+                    cal_data = ticker_obj.calendar
+                    if cal_data is not None:
+                        if isinstance(cal_data, pd.DataFrame) and not cal_data.empty:
+                            for col in cal_data.columns:
+                                for idx in cal_data.index:
+                                    val = cal_data.loc[idx, col]
+                                    if pd.notna(val):
+                                        all_events.append({
+                                            "ticker": tk, "name": name,
+                                            "date": str(col)[:10], "event": str(idx),
+                                            "value": str(val), "type": "📊"
+                                        })
+                        elif isinstance(cal_data, dict):
+                            for key, val in cal_data.items():
+                                if val is not None:
+                                    ev_date = str(val)[:10] if hasattr(val, 'strftime') else "—"
+                                    all_events.append({
+                                        "ticker": tk, "name": name,
+                                        "date": ev_date, "event": str(key),
+                                        "value": str(val), "type": "📊"
+                                    })
+
+                    # Ex-dividend date
+                    ex_div = info.get("exDividendDate")
+                    if ex_div:
+                        from datetime import timezone
+                        ex_date = datetime.fromtimestamp(ex_div, tz=timezone.utc).strftime("%Y-%m-%d") if isinstance(ex_div, (int, float)) else str(ex_div)[:10]
+                        div_rate = info.get("dividendRate", "?")
                         all_events.append({
-                            t("cal_date", L): ev["date"],
-                            t("cal_ticker", L): tk,
-                            t("cal_event", L): ev["event"],
+                            "ticker": tk, "name": name,
+                            "date": ex_date,
+                            "event": "Ex-Dividend",
+                            "value": f"${div_rate}/yr" if div_rate else "—",
+                            "type": "💰"
                         })
-                if all_events:
-                    st.dataframe(pd.DataFrame(all_events), use_container_width=True, hide_index=True)
-                else:
-                    st.info(t("cal_no_events", L))
+                except Exception:
+                    continue
+
+            if all_events:
+                for ev in sorted(all_events, key=lambda x: x["date"]):
+                    st.markdown(
+                        f'<div style="padding:8px 12px;margin:4px 0;border-radius:8px;'
+                        f'background:rgba(255,255,255,0.03);border-left:3px solid #3b82f6;">'
+                        f'<span style="font-size:14px">{ev["type"]} <b>{ev["ticker"]}</b> '
+                        f'<span style="color:#888">({ev["name"]})</span></span><br>'
+                        f'<span style="color:#aaa;font-size:12px">📅 {ev["date"]} · '
+                        f'{ev["event"]}: <b>{ev["value"]}</b></span></div>',
+                        unsafe_allow_html=True
+                    )
             else:
                 st.info(t("cal_no_events", L))
         else:
