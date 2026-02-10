@@ -968,10 +968,8 @@ def main():
 
     # ===================== TAB: CALENDAR =====================
     with tab_cal:
-        # Search bar for any ticker
         cal_search = st.text_input("🔍", placeholder="AAPL, MSFT, CDR.WA...", key="cal_search", label_visibility="collapsed")
 
-        # Collect tickers: portfolio + searched
         cal_tickers = []
         if st.session_state.aktywny_portfel:
             tx_list = pobierz_transakcje(db, uid, st.session_state.aktywny_portfel)
@@ -982,65 +980,85 @@ def main():
             cal_tickers = list(set(cal_tickers + extra))
 
         if cal_tickers:
-            all_events = []
-            for tk in cal_tickers:
-                try:
-                    ticker_obj = yf.Ticker(tk)
-                    info = ticker_obj.info
-                    name = info.get("shortName", tk)
+            with st.spinner("⏳"):
+                for tk in cal_tickers:
+                    try:
+                        ticker_obj = yf.Ticker(tk)
+                        info = ticker_obj.info or {}
+                        name = info.get("shortName") or info.get("longName") or tk
+                        sector = info.get("sector", "—")
+                        mkt_cap = info.get("marketCap")
+                        mkt_str = f"${mkt_cap/1e9:.1f}B" if mkt_cap and mkt_cap > 1e9 else (f"${mkt_cap/1e6:.0f}M" if mkt_cap else "—")
 
-                    # Earnings
-                    cal_data = ticker_obj.calendar
-                    if cal_data is not None:
-                        if isinstance(cal_data, pd.DataFrame) and not cal_data.empty:
-                            for col in cal_data.columns:
-                                for idx in cal_data.index:
-                                    val = cal_data.loc[idx, col]
-                                    if pd.notna(val):
-                                        all_events.append({
-                                            "ticker": tk, "name": name,
-                                            "date": str(col)[:10], "event": str(idx),
-                                            "value": str(val), "type": "📊"
-                                        })
-                        elif isinstance(cal_data, dict):
-                            for key, val in cal_data.items():
-                                if val is not None:
-                                    ev_date = str(val)[:10] if hasattr(val, 'strftime') else "—"
-                                    all_events.append({
-                                        "ticker": tk, "name": name,
-                                        "date": ev_date, "event": str(key),
-                                        "value": str(val), "type": "📊"
-                                    })
+                        # Company header card
+                        st.markdown(
+                            f'<div style="padding:10px 14px;margin:8px 0 4px 0;border-radius:10px;'
+                            f'background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);">'
+                            f'<span style="font-size:16px;font-weight:700">{tk}</span> '
+                            f'<span style="color:#888;font-size:14px">— {name}</span><br>'
+                            f'<span style="color:#aaa;font-size:12px">🏢 {sector} · 💰 {mkt_str}</span></div>',
+                            unsafe_allow_html=True
+                        )
 
-                    # Ex-dividend date
-                    ex_div = info.get("exDividendDate")
-                    if ex_div:
-                        from datetime import timezone
-                        ex_date = datetime.fromtimestamp(ex_div, tz=timezone.utc).strftime("%Y-%m-%d") if isinstance(ex_div, (int, float)) else str(ex_div)[:10]
-                        div_rate = info.get("dividendRate", "?")
-                        all_events.append({
-                            "ticker": tk, "name": name,
-                            "date": ex_date,
-                            "event": "Ex-Dividend",
-                            "value": f"${div_rate}/yr" if div_rate else "—",
-                            "type": "💰"
-                        })
-                except Exception:
-                    continue
+                        events_found = False
 
-            if all_events:
-                for ev in sorted(all_events, key=lambda x: x["date"]):
-                    st.markdown(
-                        f'<div style="padding:8px 12px;margin:4px 0;border-radius:8px;'
-                        f'background:rgba(255,255,255,0.03);border-left:3px solid #3b82f6;">'
-                        f'<span style="font-size:14px">{ev["type"]} <b>{ev["ticker"]}</b> '
-                        f'<span style="color:#888">({ev["name"]})</span></span><br>'
-                        f'<span style="color:#aaa;font-size:12px">📅 {ev["date"]} · '
-                        f'{ev["event"]}: <b>{ev["value"]}</b></span></div>',
-                        unsafe_allow_html=True
-                    )
-            else:
-                st.info(t("cal_no_events", L))
+                        # 1. Earnings dates from .info
+                        earnings_dates_raw = info.get("earningsTimestamp") or info.get("earningsTimestampStart")
+                        if earnings_dates_raw:
+                            from datetime import timezone
+                            e_date = datetime.fromtimestamp(earnings_dates_raw, tz=timezone.utc).strftime("%Y-%m-%d")
+                            st.markdown(
+                                f'<div style="padding:6px 12px;margin:2px 0 2px 16px;border-left:3px solid #10b981;'
+                                f'font-size:13px">📊 <b>Earnings</b> · 📅 {e_date}</div>',
+                                unsafe_allow_html=True)
+                            events_found = True
+
+                        # 2. Ex-dividend date from .info
+                        ex_div = info.get("exDividendDate")
+                        if ex_div:
+                            from datetime import timezone
+                            ex_date = datetime.fromtimestamp(ex_div, tz=timezone.utc).strftime("%Y-%m-%d") if isinstance(ex_div, (int, float)) else str(ex_div)[:10]
+                            div_rate = info.get("dividendRate")
+                            div_yield = info.get("dividendYield")
+                            desc = f"${div_rate:.2f}/yr" if div_rate else ""
+                            if div_yield:
+                                desc += f" ({div_yield*100:.2f}%)"
+                            st.markdown(
+                                f'<div style="padding:6px 12px;margin:2px 0 2px 16px;border-left:3px solid #f59e0b;'
+                                f'font-size:13px">💰 <b>Ex-Dividend</b> · 📅 {ex_date}'
+                                f'{" · " + desc if desc else ""}</div>',
+                                unsafe_allow_html=True)
+                            events_found = True
+
+                        # 3. Earnings history from .earnings_dates
+                        try:
+                            ed = ticker_obj.earnings_dates
+                            if ed is not None and not ed.empty:
+                                upcoming = ed[ed.index >= pd.Timestamp.now(tz="UTC")]
+                                show_ed = upcoming.head(3) if not upcoming.empty else ed.head(3)
+                                for idx, row in show_ed.iterrows():
+                                    d = idx.strftime("%Y-%m-%d")
+                                    eps_est = row.get("EPS Estimate", None)
+                                    eps_act = row.get("Reported EPS", None)
+                                    desc_parts = []
+                                    if pd.notna(eps_est): desc_parts.append(f"Est: ${eps_est:.2f}")
+                                    if pd.notna(eps_act): desc_parts.append(f"Act: ${eps_act:.2f}")
+                                    desc = " · ".join(desc_parts)
+                                    label = "📊 Earnings" if pd.isna(eps_act) else "📋 Earnings (reported)"
+                                    st.markdown(
+                                        f'<div style="padding:6px 12px;margin:2px 0 2px 16px;border-left:3px solid #8b5cf6;'
+                                        f'font-size:13px">{label} · 📅 {d}'
+                                        f'{" · " + desc if desc else ""}</div>',
+                                        unsafe_allow_html=True)
+                                    events_found = True
+                        except Exception:
+                            pass
+
+                        if not events_found:
+                            st.caption(f"  ⚠️ {t('cal_no_events', L)}")
+
+                    except Exception:
+                        st.caption(f"⚠️ {tk}: {t('cal_no_events', L)}")
         else:
             st.info(t("cal_no_events", L))
 
