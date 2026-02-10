@@ -29,6 +29,26 @@ import random
 import numpy as np
 import base64
 
+# ─── Benchmark helper ─────────────────────────────────────────────────────────
+_BENCHMARKS = {
+    "S&P 500": "^GSPC",
+    "WIG20": "WIG20.WA",
+}
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def pobierz_benchmark_growth(ticker: str, start_date, end_date) -> pd.Series:
+    """Fetch benchmark index and return cumulative growth % aligned to date range."""
+    try:
+        df = yf.download(ticker, start=start_date, end=end_date, progress=False)
+        if df.empty or len(df) < 2:
+            return pd.Series(dtype=float)
+        close = df["Close"].squeeze()
+        growth = ((close / close.iloc[0]) - 1) * 100
+        growth.index = growth.index.tz_localize(None)
+        return growth
+    except Exception:
+        return pd.Series(dtype=float)
+
 from ocr_reader import extract_transactions_from_image
 from logo_fetcher import get_logo_html
 
