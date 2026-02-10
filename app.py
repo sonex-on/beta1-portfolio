@@ -989,6 +989,8 @@ def main():
                         sector = info.get("sector", "—")
                         mkt_cap = info.get("marketCap")
                         mkt_str = f"${mkt_cap/1e9:.1f}B" if mkt_cap and mkt_cap > 1e9 else (f"${mkt_cap/1e6:.0f}M" if mkt_cap else "—")
+                        cur_price = info.get("currentPrice") or info.get("regularMarketPrice")
+                        price_str = f"${cur_price:,.2f}" if cur_price else "—"
 
                         # Company header card
                         st.markdown(
@@ -996,7 +998,7 @@ def main():
                             f'background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);">'
                             f'<span style="font-size:16px;font-weight:700">{tk}</span> '
                             f'<span style="color:#888;font-size:14px">— {name}</span><br>'
-                            f'<span style="color:#aaa;font-size:12px">🏢 {sector} · 💰 {mkt_str}</span></div>',
+                            f'<span style="color:#aaa;font-size:12px">🏢 {sector} · 💰 {mkt_str} · 📈 {price_str}</span></div>',
                             unsafe_allow_html=True
                         )
 
