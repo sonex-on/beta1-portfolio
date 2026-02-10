@@ -49,6 +49,60 @@ def pobierz_benchmark_growth(ticker: str, start_date, end_date) -> pd.Series:
     except Exception:
         return pd.Series(dtype=float)
 
+@st.cache_data(ttl=86400, show_spinner=False)
+def pobierz_sektor(ticker: str) -> str:
+    """Fetch sector for a ticker from yfinance."""
+    try:
+        info = yf.Ticker(ticker).info
+        return info.get("sector", "Unknown")
+    except Exception:
+        return "Unknown"
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def pobierz_korelacje(tickers: list, days: int = 90) -> pd.DataFrame:
+    """Fetch correlation matrix for a list of tickers."""
+    try:
+        end = datetime.now()
+        start = end - timedelta(days=days)
+        data = yf.download(tickers, start=start, end=end, progress=False)["Close"]
+        if isinstance(data, pd.Series):
+            data = data.to_frame()
+        return data.pct_change().dropna().corr()
+    except Exception:
+        return pd.DataFrame()
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def pobierz_dywidendy(ticker: str) -> dict:
+    """Fetch dividend info for a ticker."""
+    try:
+        tk = yf.Ticker(ticker)
+        info = tk.info
+        divs = tk.dividends
+        last_div = f"${divs.iloc[-1]:.4f}" if len(divs) > 0 else "—"
+        return {
+            "yield": info.get("dividendYield", 0) or 0,
+            "last": last_div,
+        }
+    except Exception:
+        return {"yield": 0, "last": "—"}
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def pobierz_kalendarz(ticker: str) -> list:
+    """Fetch upcoming earnings/events for a ticker."""
+    try:
+        tk = yf.Ticker(ticker)
+        cal = tk.calendar
+        events = []
+        if cal is not None and not cal.empty:
+            for col in cal.columns:
+                for idx in cal.index:
+                    val = cal.loc[idx, col]
+                    if pd.notna(val):
+                        events.append({"date": str(col), "event": str(idx), "value": str(val)})
+        return events
+    except Exception:
+        return []
+
 from ocr_reader import extract_transactions_from_image
 from logo_fetcher import get_logo_html
 
@@ -678,8 +732,9 @@ def main():
     # =========================================================================
     # ACTION TABS — Transactions / OCR / Settings
     # =========================================================================
-    tab_tx, tab_ocr, tab_cfg = st.tabs([
-        t("nav_transactions", L), t("nav_ocr_import", L), t("nav_settings", L)
+    tab_tx, tab_imp, tab_div, tab_cal, tab_corr, tab_cfg = st.tabs([
+        t("nav_transactions", L), t("nav_import", L), t("nav_dividends", L),
+        t("nav_calendar", L), t("nav_correlation", L), t("nav_settings", L)
     ])
 
     with tab_tx:
@@ -702,6 +757,7 @@ def main():
             with fc2:
                 cena = st.number_input(t("purchase_price", L), min_value=0.01, value=100.0, step=0.01, format="%.2f")
                 data_tx = st.date_input(t("date", L), value=date.today())
+                notatka = st.text_input(t("note_label", L), placeholder=t("note_placeholder", L), key="tx_note")
             dodaj = st.form_submit_button(t("add_btn", L), use_container_width=True)
 
             if dodaj and st.session_state.aktywny_portfel:
@@ -718,8 +774,10 @@ def main():
                                         for tx in trans_list if tx["ticker"] == tk)
                         if il > posiadane:
                             st.error(f"{t('only_have', L)} {posiadane:.4f} {tk}"); st.stop()
-                    dodaj_transakcje(db, uid, st.session_state.aktywny_portfel,
-                        {"ticker": tk, "ilosc": il, "cena_zakupu": cn, "data": str(data_tx), "typ": typ_db})
+                    tx_data = {"ticker": tk, "ilosc": il, "cena_zakupu": cn, "data": str(data_tx), "typ": typ_db}
+                    if notatka.strip():
+                        tx_data["notatka"] = notatka.strip()
+                    dodaj_transakcje(db, uid, st.session_state.aktywny_portfel, tx_data)
                     st.success(f"✅ {typ}: {il}× {tk} @ ${cn:.2f}")
                     st.rerun()
 
@@ -731,17 +789,23 @@ def main():
                 for tx in transakcje_lista:
                     emoji = "🟢" if tx["typ"] == "Kupno" else "🔴"
                     typ_display = t("buy", L) if tx["typ"] == "Kupno" else t("sell", L)
-                    tc1, tc2 = st.columns([4, 1])
+                    tc1, tc2, tc3 = st.columns([4, 0.5, 0.5])
                     with tc1: st.caption(f"{emoji} {typ_display}: {tx['ilosc']}× {tx['ticker']} @ ${float(tx['cena_zakupu']):.2f}")
                     with tc2:
+                        note_text = tx.get('notatka', '')
+                        if note_text:
+                            st.markdown(f'<span title="{note_text}" style="cursor:help;font-size:16px">💡</span>', unsafe_allow_html=True)
+                    with tc3:
                         if st.button("🗑️", key=f"del_{tx['id']}"):
                             usun_transakcje(db, uid, st.session_state.aktywny_portfel, tx["id"])
                             st.rerun()
             else:
                 st.info(t("no_transactions", L))
 
-    with tab_ocr:
-        ocr_tab1, ocr_tab2 = st.tabs([t("ocr_upload_label", L), t("ocr_camera_label", L)])
+    with tab_imp:
+        imp_ocr, imp_csv = st.tabs(["📸 OCR", "📄 CSV"])
+        with imp_ocr:
+            ocr_tab1, ocr_tab2 = st.tabs([t("ocr_upload_label", L), t("ocr_camera_label", L)])
         with ocr_tab1:
             uploaded_file = st.file_uploader(
                 t("ocr_upload_label", L), type=["jpg", "jpeg", "png", "webp"],
@@ -814,6 +878,163 @@ def main():
                 if st.button(t("ocr_cancel_btn", L), key="btn_ocr_cancel", use_container_width=True):
                     st.session_state["_ocr_results"] = []
                     st.rerun()
+
+        with imp_csv:
+            broker = st.selectbox(t("csv_broker", L), ["XTB", "eToro", "Interactive Brokers", t("csv_generic", L)], key="csv_broker_sel")
+            csv_file = st.file_uploader(t("csv_upload", L), type=["csv"], key="csv_upload")
+
+            if csv_file:
+                try:
+                    raw_df = pd.read_csv(csv_file)
+                    st.caption(t("csv_preview", L))
+                    st.dataframe(raw_df.head(10), use_container_width=True, hide_index=True)
+
+                    # Column mapping presets
+                    COL_MAPS = {
+                        "XTB": {"Symbol": "ticker", "Type": "typ", "Volume": "ilosc", "Open Price": "cena_zakupu", "Open Time": "data"},
+                        "eToro": {"Instrument": "ticker", "Type": "typ", "Units": "ilosc", "Open Rate": "cena_zakupu", "Open Date": "data"},
+                        "Interactive Brokers": {"Symbol": "ticker", "Buy/Sell": "typ", "Quantity": "ilosc", "Price": "cena_zakupu", "Date/Time": "data"},
+                    }
+                    col_map = COL_MAPS.get(broker, {})
+
+                    # Auto-detect columns if generic
+                    if not col_map:
+                        for c in raw_df.columns:
+                            cl = c.lower()
+                            if any(k in cl for k in ["ticker", "symbol", "instrument"]): col_map[c] = "ticker"
+                            elif any(k in cl for k in ["type", "typ", "buy", "side"]): col_map[c] = "typ"
+                            elif any(k in cl for k in ["quantity", "volume", "qty", "units", "ilosc"]): col_map[c] = "ilosc"
+                            elif any(k in cl for k in ["price", "cena", "rate", "cost"]): col_map[c] = "cena_zakupu"
+                            elif any(k in cl for k in ["date", "time", "data"]): col_map[c] = "data"
+
+                    if st.button(t("csv_import_btn", L), use_container_width=True, key="btn_csv_import"):
+                        if st.session_state.aktywny_portfel and col_map:
+                            imported = 0
+                            for _, row in raw_df.iterrows():
+                                try:
+                                    tk_col = next((k for k, v in col_map.items() if v == "ticker"), None)
+                                    il_col = next((k for k, v in col_map.items() if v == "ilosc"), None)
+                                    cn_col = next((k for k, v in col_map.items() if v == "cena_zakupu"), None)
+                                    dt_col = next((k for k, v in col_map.items() if v == "data"), None)
+                                    tp_col = next((k for k, v in col_map.items() if v == "typ"), None)
+
+                                    if not all([tk_col, il_col, cn_col]):
+                                        continue
+
+                                    tk = str(row[tk_col]).strip().upper()
+                                    il = abs(float(row[il_col]))
+                                    cn = abs(float(row[cn_col]))
+                                    dt = str(row[dt_col])[:10] if dt_col else str(date.today())
+                                    raw_typ = str(row[tp_col]).lower() if tp_col else "buy"
+                                    typ_db = "Sprzedaż" if any(s in raw_typ for s in ["sell", "sprze", "short"]) else "Kupno"
+
+                                    if tk and il > 0 and cn > 0:
+                                        dodaj_transakcje(db, uid, st.session_state.aktywny_portfel,
+                                            {"ticker": tk, "ilosc": il, "cena_zakupu": cn, "data": dt, "typ": typ_db})
+                                        imported += 1
+                                except (ValueError, TypeError, KeyError):
+                                    continue
+                            if imported > 0:
+                                st.success(t("csv_success", L).format(imported))
+                                st.rerun()
+                            else:
+                                st.error(t("csv_error", L))
+                except Exception as e:
+                    st.error(f"{t('csv_error', L)}: {e}")
+
+    # ===================== TAB: DIVIDENDS =====================
+    with tab_div:
+        if st.session_state.aktywny_portfel:
+            tx_list = pobierz_transakcje(db, uid, st.session_state.aktywny_portfel)
+            tickers_in = list(set(tx["ticker"] for tx in tx_list)) if tx_list else []
+            if tickers_in:
+                div_data = []
+                for tk in tickers_in:
+                    d = pobierz_dywidendy(tk)
+                    qty = sum(float(tx["ilosc"]) if tx["typ"]=="Kupno" else -float(tx["ilosc"])
+                              for tx in tx_list if tx["ticker"] == tk)
+                    annual = qty * d["yield"] * 100 if d["yield"] else 0
+                    div_data.append({
+                        t("div_ticker", L): tk,
+                        t("div_yield", L): f"{d['yield']*100:.2f}%" if d["yield"] else "—",
+                        t("div_last", L): d["last"],
+                        t("div_annual", L): f"${annual:.2f}" if annual > 0 else "—",
+                    })
+                st.dataframe(pd.DataFrame(div_data), use_container_width=True, hide_index=True)
+            else:
+                st.info(t("div_no_data", L))
+        else:
+            st.info(t("div_no_data", L))
+
+    # ===================== TAB: CALENDAR =====================
+    with tab_cal:
+        if st.session_state.aktywny_portfel:
+            tx_list = pobierz_transakcje(db, uid, st.session_state.aktywny_portfel)
+            tickers_in = list(set(tx["ticker"] for tx in tx_list)) if tx_list else []
+            if tickers_in:
+                all_events = []
+                for tk in tickers_in:
+                    events = pobierz_kalendarz(tk)
+                    for ev in events:
+                        all_events.append({
+                            t("cal_date", L): ev["date"],
+                            t("cal_ticker", L): tk,
+                            t("cal_event", L): ev["event"],
+                        })
+                if all_events:
+                    st.dataframe(pd.DataFrame(all_events), use_container_width=True, hide_index=True)
+                else:
+                    st.info(t("cal_no_events", L))
+            else:
+                st.info(t("cal_no_events", L))
+        else:
+            st.info(t("cal_no_events", L))
+
+    # ===================== TAB: CORRELATION =====================
+    with tab_corr:
+        if st.session_state.aktywny_portfel:
+            tx_list = pobierz_transakcje(db, uid, st.session_state.aktywny_portfel)
+            tickers_in = list(set(tx["ticker"] for tx in tx_list)) if tx_list else []
+            all_options = tickers_in + ["^GSPC", "WIG20.WA", "BTC-USD", "ETH-USD"]
+            selected = st.multiselect(t("corr_select", L), all_options, default=tickers_in[:4], key="corr_assets")
+            corr_days = st.slider(t("corr_period", L), 30, 365, 90, key="corr_days")
+
+            if len(selected) >= 2:
+                with st.spinner("..."):
+                    corr_matrix = pobierz_korelacje(tuple(selected), corr_days)
+                if not corr_matrix.empty:
+                    fig_corr = px.imshow(
+                        corr_matrix, text_auto=".2f", color_continuous_scale="RdBu_r",
+                        zmin=-1, zmax=1, aspect="auto",
+                        title=t("corr_heatmap", L)
+                    )
+                    fig_corr.update_layout(
+                        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                        font=dict(family="Inter"), height=400,
+                        margin=dict(t=40, b=20, l=20, r=20),
+                    )
+                    st.plotly_chart(fig_corr, use_container_width=True)
+
+                    # Price chart comparison
+                    st.markdown(f"**{t('corr_chart', L)}**")
+                    end_dt = datetime.now()
+                    start_dt = end_dt - timedelta(days=corr_days)
+                    price_data = yf.download(selected, start=start_dt, end=end_dt, progress=False)["Close"]
+                    if not price_data.empty:
+                        normalized = (price_data / price_data.iloc[0]) * 100
+                        fig_price = px.line(normalized, title=None)
+                        fig_price.update_layout(
+                            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                            font=dict(family="Inter"), height=350,
+                            margin=dict(t=10, b=30, l=40, r=20),
+                            yaxis_title="%", xaxis_title="",
+                            legend=dict(orientation="h", y=-0.15, x=0.5, xanchor="center"),
+                        )
+                        st.plotly_chart(fig_price, use_container_width=True)
+            else:
+                st.info(t("corr_no_data", L))
+        else:
+            st.info(t("corr_no_data", L))
 
     with tab_cfg:
         cfg_c1, cfg_c2 = st.columns(2)
@@ -904,6 +1125,32 @@ def main():
         st.markdown(f'<div class="metric-card"><div class="label">{label4}</div>'
             f'<div class="value {ng_kz}">{najgorszy["Ticker"] if ng_roi < 0 else najlepszy["Ticker"]}</div>'
             f'<div class="{"loss-badge" if ng_roi < 0 else "sub delta-positive"}">{"" if ng_roi < 0 else "+"}{(ng_roi if ng_roi < 0 else najlepszy["ROI (%)"]):+.2f}%</div></div>', unsafe_allow_html=True)
+
+    # --- Sector Allocation (compact) ---
+    sektory = {}
+    for _, row in portfel_df.iterrows():
+        sektor = pobierz_sektor(row["Ticker"])
+        sektor = sektor if sektor != "Unknown" else t("sector_unknown", L)
+        sektory[sektor] = sektory.get(sektor, 0) + row["Wartość ($)"]
+    if sektory:
+        pie_c1, pie_c2 = st.columns([1, 3])
+        with pie_c1:
+            fig_pie = px.pie(
+                names=list(sektory.keys()), values=list(sektory.values()),
+                hole=0.55, color_discrete_sequence=paleta,
+            )
+            fig_pie.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)", margin=dict(t=5, b=5, l=5, r=5),
+                height=160, showlegend=False,
+                font=dict(size=10, family="Inter"),
+            )
+            fig_pie.update_traces(textposition="inside", textinfo="percent")
+            st.plotly_chart(fig_pie, use_container_width=True)
+        with pie_c2:
+            st.caption(t("sector_title", L))
+            for s, v in sorted(sektory.items(), key=lambda x: -x[1]):
+                pct = v / sum(sektory.values()) * 100
+                st.markdown(f"<small>**{s}** — ${v:,.0f} ({pct:.1f}%)</small>", unsafe_allow_html=True)
 
     # =========================================================================
     # CHART TABS — ARCHITECT + CHART MASTER

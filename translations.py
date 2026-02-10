@@ -150,8 +150,49 @@ TRANSLATIONS = {
 
         # --- Navbar ---
         "nav_transactions": "Transakcje",
-        "nav_ocr_import": "Import OCR",
+        "nav_import": "Import",
+        "nav_dividends": "Dywidendy",
+        "nav_calendar": "Kalendarz",
+        "nav_correlation": "Korelacja",
         "nav_settings": "Ustawienia",
+
+        # --- Sector Allocation ---
+        "sector_title": "Alokacja sektorowa",
+        "sector_unknown": "Nieznany",
+
+        # --- Dividends ---
+        "div_ticker": "Ticker",
+        "div_yield": "Yield (%)",
+        "div_last": "Ostatnia dywidenda",
+        "div_annual": "Roczny dochód ($)",
+        "div_no_data": "Brak danych o dywidendach",
+
+        # --- Calendar ---
+        "cal_date": "Data",
+        "cal_ticker": "Ticker",
+        "cal_event": "Wydarzenie",
+        "cal_earnings": "Wyniki finansowe",
+        "cal_no_events": "Brak nadchodzących wydarzeń",
+
+        # --- CSV Import ---
+        "csv_upload": "Wgraj plik CSV",
+        "csv_broker": "Wybierz brokera",
+        "csv_generic": "Ogólny",
+        "csv_preview": "Podgląd danych",
+        "csv_import_btn": "Importuj transakcje",
+        "csv_success": "Zaimportowano {} transakcji",
+        "csv_error": "Błąd importu",
+
+        # --- Correlation ---
+        "corr_select": "Wybierz instrumenty do porównania",
+        "corr_period": "Okres (dni)",
+        "corr_heatmap": "Macierz korelacji",
+        "corr_chart": "Wykres cenowy",
+        "corr_no_data": "Wybierz min. 2 instrumenty",
+
+        # --- Transaction Notes ---
+        "note_label": "Notatka (opcjonalnie)",
+        "note_placeholder": "Dlaczego kupujesz? Target cenowy?",
     },
 
     "en": {
@@ -301,8 +342,49 @@ TRANSLATIONS = {
 
         # --- Navbar ---
         "nav_transactions": "Transactions",
-        "nav_ocr_import": "OCR Import",
+        "nav_import": "Import",
+        "nav_dividends": "Dividends",
+        "nav_calendar": "Calendar",
+        "nav_correlation": "Correlation",
         "nav_settings": "Settings",
+
+        # --- Sector Allocation ---
+        "sector_title": "Sector Allocation",
+        "sector_unknown": "Unknown",
+
+        # --- Dividends ---
+        "div_ticker": "Ticker",
+        "div_yield": "Yield (%)",
+        "div_last": "Last Dividend",
+        "div_annual": "Annual Income ($)",
+        "div_no_data": "No dividend data available",
+
+        # --- Calendar ---
+        "cal_date": "Date",
+        "cal_ticker": "Ticker",
+        "cal_event": "Event",
+        "cal_earnings": "Earnings Report",
+        "cal_no_events": "No upcoming events",
+
+        # --- CSV Import ---
+        "csv_upload": "Upload CSV file",
+        "csv_broker": "Select broker",
+        "csv_generic": "Generic",
+        "csv_preview": "Data preview",
+        "csv_import_btn": "Import transactions",
+        "csv_success": "Imported {} transactions",
+        "csv_error": "Import error",
+
+        # --- Correlation ---
+        "corr_select": "Select instruments to compare",
+        "corr_period": "Period (days)",
+        "corr_heatmap": "Correlation Matrix",
+        "corr_chart": "Price Chart",
+        "corr_no_data": "Select at least 2 instruments",
+
+        # --- Transaction Notes ---
+        "note_label": "Note (optional)",
+        "note_placeholder": "Why are you buying? Price target?",
     },
 }
 
