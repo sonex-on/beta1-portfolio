@@ -147,6 +147,11 @@ TRANSLATIONS = {
         "ocr_price_col": "Cena ($)",
         "ocr_date_col": "Data",
         "ocr_type_col": "Typ",
+
+        # --- Navbar ---
+        "nav_transactions": "📝 Transakcje",
+        "nav_ocr_import": "📸 Import OCR",
+        "nav_settings": "⚙️ Ustawienia",
     },
 
     "en": {
@@ -293,6 +298,11 @@ TRANSLATIONS = {
         "ocr_price_col": "Price ($)",
         "ocr_date_col": "Date",
         "ocr_type_col": "Type",
+
+        # --- Navbar ---
+        "nav_transactions": "📝 Transactions",
+        "nav_ocr_import": "📸 OCR Import",
+        "nav_settings": "⚙️ Settings",
     },
 }
 
