@@ -1150,9 +1150,13 @@ def main():
                 if df.empty or len(df) < 2:
                     st.warning(t("ind_no_data", L))
                 else:
+                    # Flatten MultiIndex columns if needed
+                    if isinstance(df.columns, pd.MultiIndex):
+                        df.columns = df.columns.get_level_values(0)
                     close = df["Close"].squeeze()
                     high = df["High"].squeeze()
                     low = df["Low"].squeeze()
+                    open_price = df["Open"].squeeze()
                     volume = df["Volume"].squeeze()
 
                     # Calculate indicators
@@ -1189,6 +1193,7 @@ def main():
                     high = high[high.index >= str(trim_start)]
                     low = low[low.index >= str(trim_start)]
                     volume = volume[volume.index >= str(trim_start)]
+                    open_price = open_price[open_price.index >= str(trim_start)]
                     for k in calc: calc[k] = calc[k][calc[k].index >= str(trim_start)]
                     if rsi_data is not None: rsi_data = rsi_data[rsi_data.index >= str(trim_start)]
                     if macd_data is not None:
@@ -1213,7 +1218,7 @@ def main():
 
                     # Candlestick
                     fig.add_trace(go.Candlestick(
-                        x=close.index, open=df.loc[close.index, "Open"].squeeze(),
+                        x=close.index, open=open_price,
                         high=high, low=low, close=close, name=ind_ticker,
                         increasing_line_color="#10b981", decreasing_line_color="#ef4444",
                     ), row=1, col=1)
@@ -1238,7 +1243,7 @@ def main():
                     # Volume subplot
                     if "Volume" in sub_map:
                         colors = ["#10b981" if c >= o else "#ef4444"
-                                  for c, o in zip(close.values, df.loc[close.index, "Open"].squeeze().values)]
+                                  for c, o in zip(close.values, open_price.values)]
                         fig.add_trace(go.Bar(
                             x=volume.index, y=volume.values, name="Volume",
                             marker_color=colors, opacity=0.6,
