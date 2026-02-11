@@ -180,6 +180,8 @@ TRANSLATIONS = {
         "ind_custom_ticker": "Lub wpisz ticker",
         "ind_select_indicators": "Wybierz indykatory",
         "ind_no_data": "Brak danych dla tego tickera",
+        "ind_fav_label": "Ulubione interwaly",
+        "ind_fav_caption": "Przypnij do 5 interwalow na pasku",
 
         # --- CSV Import ---
         "csv_upload": "Wgraj plik CSV",
@@ -379,6 +381,8 @@ TRANSLATIONS = {
         "ind_custom_ticker": "Or enter ticker",
         "ind_select_indicators": "Select indicators",
         "ind_no_data": "No data for this ticker",
+        "ind_fav_label": "Favourite intervals",
+        "ind_fav_caption": "Pin up to 5 intervals to the toolbar",
 
         # --- CSV Import ---
         "csv_upload": "Upload CSV file",

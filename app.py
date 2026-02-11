@@ -1306,11 +1306,28 @@ def main():
             "12h": 60, "1D": 90, "3D": 180, "5D": 365, "1W": 730, "1M": 1825,
         }
 
-        # --- Favorites (pinned intervals, max 5) ---
-        if "ind_fav_intervals" not in st.session_state:
-            st.session_state.ind_fav_intervals = ["1h", "4h", "1D", "1W", "1M"]
-        if "ind_interval" not in st.session_state:
-            st.session_state.ind_interval = "1D"
+        # --- Favorites (pinned intervals, max 5) — persist to Firestore ---
+        if "ind_fav_intervals" not in st.session_state or "ind_interval" not in st.session_state:
+            # Load saved settings from Firestore
+            try:
+                settings_ref = db.collection("users").document(uid).collection("settings").document("indicators")
+                saved = settings_ref.get()
+                if saved.exists:
+                    d = saved.to_dict()
+                    if "ind_fav_intervals" not in st.session_state:
+                        st.session_state.ind_fav_intervals = d.get("fav_intervals", ["1h", "4h", "1D", "1W", "1M"])
+                    if "ind_interval" not in st.session_state:
+                        st.session_state.ind_interval = d.get("interval", "1D")
+                else:
+                    if "ind_fav_intervals" not in st.session_state:
+                        st.session_state.ind_fav_intervals = ["1h", "4h", "1D", "1W", "1M"]
+                    if "ind_interval" not in st.session_state:
+                        st.session_state.ind_interval = "1D"
+            except Exception:
+                if "ind_fav_intervals" not in st.session_state:
+                    st.session_state.ind_fav_intervals = ["1h", "4h", "1D", "1W", "1M"]
+                if "ind_interval" not in st.session_state:
+                    st.session_state.ind_interval = "1D"
         # Guard against stale session
         if st.session_state.ind_interval not in CANDLE_INTERVALS:
             st.session_state.ind_interval = "1D"
@@ -1327,6 +1344,12 @@ def main():
                 if st.button(label, key=f"ind_iv_{label}", use_container_width=True,
                              type="primary" if is_active else "secondary"):
                     st.session_state.ind_interval = label
+                    # Persist to Firestore
+                    try:
+                        db.collection("users").document(uid).collection("settings").document("indicators").set(
+                            {"interval": label, "fav_intervals": st.session_state.ind_fav_intervals}, merge=True)
+                    except Exception:
+                        pass
                     st.rerun()
         # "More" dropdown for non-pinned intervals
         with toolbar_cols[-1]:
@@ -1336,12 +1359,17 @@ def main():
             )
             if more_choice != "..." and more_choice != st.session_state.ind_interval:
                 st.session_state.ind_interval = more_choice
+                try:
+                    db.collection("users").document(uid).collection("settings").document("indicators").set(
+                        {"interval": more_choice, "fav_intervals": st.session_state.ind_fav_intervals}, merge=True)
+                except Exception:
+                    pass
                 st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
         # --- Pin/Unpin management (expander) ---
-        with st.expander("Favourite intervals", expanded=False):
-            st.caption("Pin up to 5 intervals to the toolbar")
+        with st.expander(t("ind_fav_label", L) if "ind_fav_label" in (T.get(L) or {}) else "Favourite intervals", expanded=False):
+            st.caption(t("ind_fav_caption", L) if "ind_fav_caption" in (T.get(L) or {}) else "Pin up to 5 intervals to the toolbar")
             new_favs = []
             cols_fav = st.columns(len(CANDLE_INTERVALS))
             for idx, iv_name in enumerate(CANDLE_INTERVALS.keys()):
@@ -1352,9 +1380,15 @@ def main():
             if new_favs != fav_list:
                 if len(new_favs) <= 5:
                     st.session_state.ind_fav_intervals = new_favs
+                    # Persist to Firestore
+                    try:
+                        db.collection("users").document(uid).collection("settings").document("indicators").set(
+                            {"fav_intervals": new_favs, "interval": st.session_state.ind_interval}, merge=True)
+                    except Exception:
+                        pass
                     st.rerun()
                 else:
-                    st.warning("Maks. 5 ulubionych!")
+                    st.warning("Max 5!")
 
         current_iv = st.session_state.ind_interval
         yf_interval, max_days, resample_rule = CANDLE_INTERVALS[current_iv]
