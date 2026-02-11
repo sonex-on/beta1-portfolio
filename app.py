@@ -381,6 +381,36 @@ def zastosuj_motyw(ciemny: bool, paleta_nazwa: str):
         margin-bottom: 12px;
         display: flex; align-items: center;
     }}
+    /* --- Indicators: Compact TradingView Toolbar --- */
+    .stButton > button,
+    button[data-testid="stBaseButton-secondary"],
+    button[data-testid="stBaseButton-primary"],
+    button[data-testid*="BaseButton"] {{
+        padding: 2px 10px !important;
+        font-size: 12px !important;
+        min-height: 28px !important;
+        max-height: 28px !important;
+        height: 28px !important;
+        line-height: 1 !important;
+        border-radius: 4px !important;
+    }}
+    [data-testid="stHorizontalBlock"] {{
+        gap: 0.25rem !important;
+    }}
+    [data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+    .stSelectbox > div > div {{
+        min-height: 28px !important;
+        max-height: 28px !important;
+        font-size: 12px !important;
+        padding-top: 0px !important;
+        padding-bottom: 0px !important;
+    }}
+    [data-testid="stExpander"] details > summary,
+    .streamlit-expanderHeader {{
+        font-size: 12px !important;
+        padding: 4px 8px !important;
+        min-height: 28px !important;
+    }}
     </style>""", unsafe_allow_html=True)
 
 # =============================================================================
@@ -1219,61 +1249,7 @@ def main():
 
     # ===================== TAB: INDICATORS =====================
     with tab_ind:
-        # --- Compact CSS for TradingView-style toolbar ---
-        st.markdown("""
-        <style>
-        /* ─── Compact TradingView-style ─── */
-        /* Buttons: cover ALL Streamlit selector variants */
-        button[data-testid="stBaseButton-secondary"],
-        button[data-testid="stBaseButton-primary"],
-        button[data-testid*="BaseButton"],
-        .stButton > button,
-        [data-testid="stButton"] > button,
-        div.stButton > button {
-            padding: 2px 10px !important;
-            font-size: 12px !important;
-            min-height: 28px !important;
-            max-height: 28px !important;
-            height: 28px !important;
-            line-height: 1 !important;
-            border-radius: 4px !important;
-        }
-        /* Tighten column gaps */
-        [data-testid="stHorizontalBlock"],
-        .stHorizontalBlock {
-            gap: 0.25rem !important;
-        }
-        /* Dropdown / selectbox */
-        [data-testid="stSelectbox"] div[data-baseweb="select"] > div,
-        .stSelectbox > div > div {
-            min-height: 28px !important;
-            max-height: 28px !important;
-            font-size: 12px !important;
-            padding-top: 0px !important;
-            padding-bottom: 0px !important;
-        }
-        /* Search input */
-        [data-testid="stTextInput"] input,
-        .stTextInput input {
-            font-size: 13px !important;
-            height: 32px !important;
-            padding: 4px 10px !important;
-        }
-        /* Expander */
-        [data-testid="stExpander"] details > summary,
-        .streamlit-expanderHeader {
-            font-size: 12px !important;
-            padding: 4px 8px !important;
-            min-height: 28px !important;
-        }
-        /* Multiselect chips */
-        [data-testid="stMultiSelect"] span[data-baseweb="tag"],
-        .stMultiSelect span[data-baseweb="tag"] {
-            font-size: 11px !important;
-            height: 24px !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
+
 
         # --- Unified Ticker Search (TradingView-style) ---
         portfolio_tickers = []
