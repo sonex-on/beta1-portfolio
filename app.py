@@ -382,10 +382,7 @@ def zastosuj_motyw(ciemny: bool, paleta_nazwa: str):
         display: flex; align-items: center;
     }}
     /* --- Indicators: Compact TradingView Toolbar --- */
-    .stButton > button,
-    button[data-testid="stBaseButton-secondary"],
-    button[data-testid="stBaseButton-primary"],
-    button[data-testid*="BaseButton"] {{
+    button {{
         padding: 2px 10px !important;
         font-size: 12px !important;
         min-height: 28px !important;
@@ -394,7 +391,21 @@ def zastosuj_motyw(ciemny: bool, paleta_nazwa: str):
         line-height: 1 !important;
         border-radius: 4px !important;
     }}
-    [data-testid="stHorizontalBlock"] {{
+    .stButton > button,
+    button[data-testid="stBaseButton-secondary"],
+    button[data-testid="stBaseButton-primary"],
+    button[data-testid*="BaseButton"],
+    [class*="emotion-cache"] button {{
+        padding: 2px 10px !important;
+        font-size: 12px !important;
+        min-height: 28px !important;
+        max-height: 28px !important;
+        height: 28px !important;
+        line-height: 1 !important;
+        border-radius: 4px !important;
+    }}
+    [data-testid="stHorizontalBlock"],
+    [class*="emotion-cache"][data-testid="stHorizontalBlock"] {{
         gap: 0.25rem !important;
     }}
     [data-testid="stSelectbox"] div[data-baseweb="select"] > div,
@@ -406,7 +417,8 @@ def zastosuj_motyw(ciemny: bool, paleta_nazwa: str):
         padding-bottom: 0px !important;
     }}
     [data-testid="stExpander"] details > summary,
-    .streamlit-expanderHeader {{
+    .streamlit-expanderHeader,
+    details > summary {{
         font-size: 12px !important;
         padding: 4px 8px !important;
         min-height: 28px !important;
