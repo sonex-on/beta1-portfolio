@@ -1421,17 +1421,17 @@ def main():
                         macd_signal = macd_data.ewm(span=9).mean()
 
                     # Trim to requested timeframe
-                    trim_start = end_dt - timedelta(days=view_days)
-                    close = close[close.index >= str(trim_start)]
-                    high = high[high.index >= str(trim_start)]
-                    low = low[low.index >= str(trim_start)]
-                    volume = volume[volume.index >= str(trim_start)]
-                    open_price = open_price[open_price.index >= str(trim_start)]
-                    for k in calc: calc[k] = calc[k][calc[k].index >= str(trim_start)]
-                    if rsi_data is not None: rsi_data = rsi_data[rsi_data.index >= str(trim_start)]
+                    trim_start = pd.Timestamp(end_dt - timedelta(days=view_days))
+                    close = close[close.index >= trim_start]
+                    high = high[high.index >= trim_start]
+                    low = low[low.index >= trim_start]
+                    volume = volume[volume.index >= trim_start]
+                    open_price = open_price[open_price.index >= trim_start]
+                    for k in calc: calc[k] = calc[k][calc[k].index >= trim_start]
+                    if rsi_data is not None: rsi_data = rsi_data[rsi_data.index >= trim_start]
                     if macd_data is not None:
-                        macd_data = macd_data[macd_data.index >= str(trim_start)]
-                        macd_signal = macd_signal[macd_signal.index >= str(trim_start)]
+                        macd_data = macd_data[macd_data.index >= trim_start]
+                        macd_signal = macd_signal[macd_signal.index >= trim_start]
 
                     # Determine subplot layout
                     n_sub = 1
