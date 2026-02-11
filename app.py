@@ -1222,37 +1222,55 @@ def main():
         # --- Compact CSS for TradingView-style toolbar ---
         st.markdown("""
         <style>
-        /* ─── Compact TradingView-style buttons & inputs ─── */
-        /* ALL buttons in indicators section — chips + interval toolbar */
-        [data-testid="stButton"] > button {
+        /* ─── Compact TradingView-style ─── */
+        /* Buttons: cover ALL Streamlit selector variants */
+        button[data-testid="stBaseButton-secondary"],
+        button[data-testid="stBaseButton-primary"],
+        button[data-testid*="BaseButton"],
+        .stButton > button,
+        [data-testid="stButton"] > button,
+        div.stButton > button {
             padding: 2px 10px !important;
             font-size: 12px !important;
             min-height: 28px !important;
+            max-height: 28px !important;
             height: 28px !important;
             line-height: 1 !important;
             border-radius: 4px !important;
         }
         /* Tighten column gaps */
-        [data-testid="stHorizontalBlock"] {
-            gap: 0.3rem !important;
+        [data-testid="stHorizontalBlock"],
+        .stHorizontalBlock {
+            gap: 0.25rem !important;
         }
-        /* "More" dropdown */
-        [data-testid="stSelectbox"] > div > div {
+        /* Dropdown / selectbox */
+        [data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+        .stSelectbox > div > div {
             min-height: 28px !important;
+            max-height: 28px !important;
             font-size: 12px !important;
-            padding-top: 2px !important;
-            padding-bottom: 2px !important;
+            padding-top: 0px !important;
+            padding-bottom: 0px !important;
         }
         /* Search input */
-        [data-testid="stTextInput"] input {
+        [data-testid="stTextInput"] input,
+        .stTextInput input {
             font-size: 13px !important;
             height: 32px !important;
             padding: 4px 10px !important;
         }
-        /* Expander compact */
-        [data-testid="stExpander"] summary {
+        /* Expander */
+        [data-testid="stExpander"] details > summary,
+        .streamlit-expanderHeader {
             font-size: 12px !important;
             padding: 4px 8px !important;
+            min-height: 28px !important;
+        }
+        /* Multiselect chips */
+        [data-testid="stMultiSelect"] span[data-baseweb="tag"],
+        .stMultiSelect span[data-baseweb="tag"] {
+            font-size: 11px !important;
+            height: 24px !important;
         }
         </style>
         """, unsafe_allow_html=True)
@@ -1371,8 +1389,8 @@ def main():
         st.markdown('</div>', unsafe_allow_html=True)
 
         # --- Pin/Unpin management (expander) ---
-        with st.expander(t("ind_fav_label", L), expanded=False):
-            st.caption(t("ind_fav_caption", L))
+        with st.expander("Favourite intervals", expanded=False):
+            st.caption("Pin up to 5 intervals to the toolbar")
             new_favs = []
             cols_fav = st.columns(len(CANDLE_INTERVALS))
             for idx, iv_name in enumerate(CANDLE_INTERVALS.keys()):
