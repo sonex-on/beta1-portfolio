@@ -122,6 +122,17 @@ PALETY_KOLOROW = {
     "Royal": ["#7400B8", "#6930C3", "#5E60CE", "#5390D9", "#4EA8DE", "#48BFE3"],
 }
 
+# --- Interactive Chart Configuration (TradingView-style) ---
+CHART_CONFIG = {
+    "scrollZoom": True,
+    "displayModeBar": "hover",
+    "displaylogo": False,
+    "doubleClick": "reset+autosize",
+    "modeBarButtonsToRemove": ["select2d", "lasso2d"],
+    "modeBarButtonsToAdd": ["drawline", "eraseshape"],
+    "modeBarStyle": {"bgcolor": "rgba(19,23,34,0.8)", "color": "#787B86", "activecolor": "#2962FF"},
+}
+
 # =============================================================================
 # MOTYWY I CSS
 # =============================================================================
@@ -262,6 +273,23 @@ def zastosuj_motyw(ciemny: bool, paleta_nazwa: str):
     }}
     .stTabs [data-baseweb="tab-border"] {{ display: none; }}
     .stTabs [data-baseweb="tab-highlight"] {{ display: none; }}
+
+    /* --- Chart Containers — Smooth Transitions --- */
+    .js-plotly-plot {{ transition: all 0.3s cubic-bezier(.4,0,.2,1); }}
+    .js-plotly-plot .modebar-container {{
+        opacity: 0 !important;
+        transition: opacity 0.35s ease !important;
+    }}
+    .js-plotly-plot:hover .modebar-container {{
+        opacity: 1 !important;
+    }}
+    .js-plotly-plot .modebar-btn {{
+        font-size: 16px !important;
+    }}
+    [data-testid="stPlotlyChart"] {{
+        min-height: 50vh;
+        transition: height 0.3s ease;
+    }}
 
     /* --- Hide Sidebar --- */
     section[data-testid="stSidebar"] {{ display: none !important; }}
@@ -1086,8 +1114,9 @@ def main():
                         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                         font=dict(family="Inter"), height=400,
                         margin=dict(t=40, b=20, l=20, r=20),
+                        transition=dict(duration=500, easing="cubic-in-out"),
                     )
-                    st.plotly_chart(fig_corr, use_container_width=True)
+                    st.plotly_chart(fig_corr, use_container_width=True, config=CHART_CONFIG)
 
                     # Price chart comparison
                     st.markdown(f"**{t('corr_chart', L)}**")
@@ -1103,8 +1132,10 @@ def main():
                             margin=dict(t=10, b=30, l=40, r=20),
                             yaxis_title="%", xaxis_title="",
                             legend=dict(orientation="h", y=-0.15, x=0.5, xanchor="center"),
+                            hovermode="x unified",
+                            transition=dict(duration=500, easing="cubic-in-out"),
                         )
-                        st.plotly_chart(fig_price, use_container_width=True)
+                        st.plotly_chart(fig_price, use_container_width=True, config=CHART_CONFIG)
             else:
                 st.info(t("corr_no_data", L))
         else:
@@ -1125,10 +1156,13 @@ def main():
             if custom_tk.strip():
                 ind_ticker = custom_tk.strip().upper()
 
-        # Timeframe buttons
-        tf_options = {"1D": 1, "5D": 5, "1M": 30, "3M": 90, "6M": 180, "1Y": 365}
+        # Timeframe buttons (daily candles — min 1 week for readable chart)
+        tf_options = {"1W": 7, "2W": 14, "1M": 30, "3M": 90, "6M": 180, "1Y": 365, "3Y": 1095}
         tf_cols = st.columns(len(tf_options))
         if "ind_tf" not in st.session_state:
+            st.session_state.ind_tf = "3M"
+        # Reset invalid timeframe from old session
+        if st.session_state.ind_tf not in tf_options:
             st.session_state.ind_tf = "3M"
         for i, (label, _) in enumerate(tf_options.items()):
             with tf_cols[i]:
@@ -1213,82 +1247,173 @@ def main():
                                         vertical_spacing=0.03, row_heights=heights)
 
                     is_dark = st.session_state.motyw_ciemny
-                    font_col = "#FAFAFA" if is_dark else "#1A1A2E"
-                    bg_col = "rgba(0,0,0,0)"
+
+                    # --- TradingView color palette ---
+                    tv_bg = "#131722" if is_dark else "#FFFFFF"
+                    tv_grid = "#363A45" if is_dark else "#E0E3EB"
+                    tv_text = "#D1D4DC" if is_dark else "#131722"
+                    tv_axis = "#787B86"
+                    tv_green = "#26a69a"   # TradingView up candle
+                    tv_red = "#ef5350"     # TradingView down candle
+                    tv_cross = "#9598A1" if is_dark else "#9598A1"
 
                     # Candlestick
                     fig.add_trace(go.Candlestick(
                         x=close.index, open=open_price,
                         high=high, low=low, close=close, name=ind_ticker,
-                        increasing_line_color="#10b981", decreasing_line_color="#ef4444",
+                        increasing=dict(line=dict(color=tv_green, width=1), fillcolor=tv_green),
+                        decreasing=dict(line=dict(color=tv_red, width=1), fillcolor=tv_red),
+                        whiskerwidth=0.5,
                     ), row=1, col=1)
 
+                    # --- Current price line (dashed) with label ---
+                    last_price = float(close.iloc[-1])
+                    price_color = tv_green if last_price >= float(open_price.iloc[-1]) else tv_red
+                    fig.add_hline(
+                        y=last_price, line_dash="dash", line_color=price_color, line_width=1,
+                        row=1, col=1,
+                        annotation_text=f"  {last_price:,.2f}",
+                        annotation_position="right",
+                        annotation=dict(
+                            font=dict(size=11, color="#fff", family="Inter"),
+                            bgcolor=price_color, bordercolor=price_color,
+                            borderwidth=1, borderpad=3,
+                        ),
+                    )
+
                     # Overlay indicators on price chart
-                    overlay_colors = {"SMA 20": "#3b82f6", "SMA 50": "#f59e0b", "SMA 200": "#ef4444",
-                                      "EMA 12": "#8b5cf6", "EMA 26": "#ec4899"}
+                    overlay_colors = {"SMA 20": "#2962FF", "SMA 50": "#FF6D00", "SMA 200": "#E91E63",
+                                      "EMA 12": "#7B1FA2", "EMA 26": "#FF6F00"}
                     for ind_name, series in calc.items():
                         if ind_name in overlay_colors:
                             fig.add_trace(go.Scatter(
                                 x=series.index, y=series.values, mode="lines",
-                                name=ind_name, line=dict(color=overlay_colors[ind_name], width=1.2),
+                                name=ind_name, line=dict(color=overlay_colors[ind_name], width=1.5),
                             ), row=1, col=1)
-                    # Bollinger Bands
+                    # Bollinger Bands (with fill between upper/lower)
                     if "BB Upper" in calc:
-                        for bb_key, bb_col, bb_dash in [("BB Upper", "#60a5fa", "dot"), ("BB Lower", "#60a5fa", "dot"), ("BB Mid", "#60a5fa", "dash")]:
-                            fig.add_trace(go.Scatter(
-                                x=calc[bb_key].index, y=calc[bb_key].values, mode="lines",
-                                name=bb_key, line=dict(color=bb_col, width=1, dash=bb_dash),
-                            ), row=1, col=1)
+                        fig.add_trace(go.Scatter(
+                            x=calc["BB Upper"].index, y=calc["BB Upper"].values, mode="lines",
+                            name="BB Upper", line=dict(color="#2962FF", width=1, dash="dot"),
+                        ), row=1, col=1)
+                        fig.add_trace(go.Scatter(
+                            x=calc["BB Lower"].index, y=calc["BB Lower"].values, mode="lines",
+                            name="BB Lower", line=dict(color="#2962FF", width=1, dash="dot"),
+                            fill="tonexty", fillcolor="rgba(41,98,255,0.06)",
+                        ), row=1, col=1)
+                        fig.add_trace(go.Scatter(
+                            x=calc["BB Mid"].index, y=calc["BB Mid"].values, mode="lines",
+                            name="BB Mid", line=dict(color="#2962FF", width=1, dash="dash"),
+                        ), row=1, col=1)
 
                     # Volume subplot
                     if "Volume" in sub_map:
-                        colors = ["#10b981" if c >= o else "#ef4444"
+                        colors = [tv_green if c >= o else tv_red
                                   for c, o in zip(close.values, open_price.values)]
                         fig.add_trace(go.Bar(
                             x=volume.index, y=volume.values, name="Volume",
-                            marker_color=colors, opacity=0.6,
+                            marker_color=colors, opacity=0.45,
+                            marker_line_width=0,
                         ), row=sub_map["Volume"], col=1)
 
                     # RSI subplot
                     if "RSI" in sub_map and rsi_data is not None:
                         fig.add_trace(go.Scatter(
                             x=rsi_data.index, y=rsi_data.values, mode="lines",
-                            name="RSI", line=dict(color="#f59e0b", width=1.5),
+                            name="RSI", line=dict(color="#7B1FA2", width=1.5),
                         ), row=sub_map["RSI"], col=1)
-                        fig.add_hline(y=70, line_dash="dot", line_color="rgba(239,68,68,0.5)", row=sub_map["RSI"], col=1)
-                        fig.add_hline(y=30, line_dash="dot", line_color="rgba(16,185,129,0.5)", row=sub_map["RSI"], col=1)
+                        # Overbought / oversold zones
+                        fig.add_hrect(y0=70, y1=100, fillcolor="rgba(239,83,80,0.08)",
+                                      line_width=0, row=sub_map["RSI"], col=1)
+                        fig.add_hrect(y0=0, y1=30, fillcolor="rgba(38,166,154,0.08)",
+                                      line_width=0, row=sub_map["RSI"], col=1)
+                        fig.add_hline(y=70, line_dash="dash", line_color=tv_red, line_width=0.7,
+                                      row=sub_map["RSI"], col=1)
+                        fig.add_hline(y=30, line_dash="dash", line_color=tv_green, line_width=0.7,
+                                      row=sub_map["RSI"], col=1)
+                        fig.add_hline(y=50, line_dash="dot", line_color=tv_axis, line_width=0.5,
+                                      row=sub_map["RSI"], col=1)
                         fig.update_yaxes(range=[0, 100], row=sub_map["RSI"], col=1)
 
                     # MACD subplot
                     if "MACD" in sub_map and macd_data is not None:
                         fig.add_trace(go.Scatter(
                             x=macd_data.index, y=macd_data.values, mode="lines",
-                            name="MACD", line=dict(color="#3b82f6", width=1.5),
+                            name="MACD", line=dict(color="#2962FF", width=1.5),
                         ), row=sub_map["MACD"], col=1)
                         fig.add_trace(go.Scatter(
                             x=macd_signal.index, y=macd_signal.values, mode="lines",
-                            name="Signal", line=dict(color="#ef4444", width=1, dash="dash"),
+                            name="Signal", line=dict(color="#FF6D00", width=1.5),
                         ), row=sub_map["MACD"], col=1)
                         histogram = macd_data - macd_signal
-                        hist_colors = ["#10b981" if v >= 0 else "#ef4444" for v in histogram.values]
+                        hist_colors = ["rgba(38,166,154,0.6)" if v >= 0 else "rgba(239,83,80,0.6)"
+                                       for v in histogram.values]
                         fig.add_trace(go.Bar(
                             x=histogram.index, y=histogram.values, name="Histogram",
-                            marker_color=hist_colors, opacity=0.4,
+                            marker_color=hist_colors, marker_line_width=0,
                         ), row=sub_map["MACD"], col=1)
+                        fig.add_hline(y=0, line_dash="solid", line_color=tv_grid, line_width=0.5,
+                                      row=sub_map["MACD"], col=1)
 
-                    total_h = 400 + (n_sub - 1) * 150
+                    # --- TradingView-style layout ---
+                    total_h = 550 + (n_sub - 1) * 200
                     fig.update_layout(
-                        height=total_h, paper_bgcolor=bg_col, plot_bgcolor=bg_col,
-                        font=dict(color=font_col, family="Inter"), showlegend=True,
-                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10)),
-                        margin=dict(l=10, r=10, t=30, b=10),
+                        height=total_h,
+                        paper_bgcolor=tv_bg,
+                        plot_bgcolor=tv_bg,
+                        font=dict(color=tv_text, family="'Trebuchet MS', Inter, sans-serif", size=12),
+                        showlegend=True,
+                        legend=dict(
+                            orientation="h", yanchor="bottom", y=1.02,
+                            xanchor="right", x=1,
+                            font=dict(size=10, color=tv_axis),
+                            bgcolor="rgba(0,0,0,0)",
+                        ),
+                        margin=dict(l=0, r=60, t=30, b=20),
                         xaxis_rangeslider_visible=False,
+                        hovermode="x unified",
+                        hoverlabel=dict(
+                            bgcolor=tv_bg, bordercolor=tv_grid,
+                            font=dict(color=tv_text, size=12, family="Inter"),
+                        ),
+                        dragmode="zoom",
                     )
-                    for i in range(1, n_sub + 1):
-                        fig.update_xaxes(gridcolor="rgba(128,128,128,0.1)", row=i, col=1)
-                        fig.update_yaxes(gridcolor="rgba(128,128,128,0.1)", row=i, col=1)
 
-                    st.plotly_chart(fig, use_container_width=True)
+                    # --- Ticker watermark ---
+                    fig.add_annotation(
+                        text=ind_ticker,
+                        xref="paper", yref="paper",
+                        x=0.5, y=0.5,
+                        showarrow=False,
+                        font=dict(size=60, color=tv_grid, family="Inter"),
+                        opacity=0.15 if is_dark else 0.08,
+                    )
+
+                    # --- Style all axes (TradingView) ---
+                    for i in range(1, n_sub + 1):
+                        fig.update_xaxes(
+                            gridcolor=tv_grid, gridwidth=0.5,
+                            zeroline=False,
+                            showline=True, linecolor=tv_grid, linewidth=0.5,
+                            tickfont=dict(color=tv_axis, size=10),
+                            spikemode="across", spikesnap="cursor",
+                            spikecolor=tv_cross, spikethickness=0.5, spikedash="solid",
+                            row=i, col=1,
+                            fixedrange=False,
+                        )
+                        fig.update_yaxes(
+                            gridcolor=tv_grid, gridwidth=0.5,
+                            zeroline=False,
+                            showline=True, linecolor=tv_grid, linewidth=0.5,
+                            side="right",
+                            tickfont=dict(color=tv_axis, size=10),
+                            spikemode="across", spikesnap="cursor",
+                            spikecolor=tv_cross, spikethickness=0.5, spikedash="solid",
+                            row=i, col=1,
+                            fixedrange=False,
+                        )
+
+                    st.plotly_chart(fig, use_container_width=True, config=CHART_CONFIG)
 
     with tab_cfg:
         cfg_c1, cfg_c2 = st.columns(2)
@@ -1399,7 +1524,7 @@ def main():
                 font=dict(size=10, family="Inter"),
             )
             fig_pie.update_traces(textposition="inside", textinfo="percent")
-            st.plotly_chart(fig_pie, use_container_width=True)
+            st.plotly_chart(fig_pie, use_container_width=True, config=CHART_CONFIG)
         with pie_c2:
             st.caption(t("sector_title", L))
             for s, v in sorted(sektory.items(), key=lambda x: -x[1]):
@@ -1416,7 +1541,9 @@ def main():
     layout_base = dict(
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color=font_col, family="Inter"),
-        margin=dict(t=20, b=40, l=50, r=30), height=420,
+        margin=dict(t=20, b=40, l=50, r=30), height=600,
+        hovermode="x unified",
+        transition=dict(duration=500, easing="cubic-in-out"),
     )
 
     # --- Pobierz dane dla wykresów z cache ---
@@ -1464,7 +1591,7 @@ def main():
                 yaxis=dict(showgrid=True, gridcolor=grid_col, title="$",
                            tickprefix="$", separatethousands=True),
                 showlegend=True, legend=dict(orientation="h", y=-0.12, x=0.5, xanchor="center"))
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, config=CHART_CONFIG)
         else:
             st.info(t("no_data_for_tab", L))
 
@@ -1517,7 +1644,7 @@ def main():
                 yaxis=dict(showgrid=True, gridcolor=grid_col, title="%",
                            zeroline=True, zerolinecolor="rgba(128,128,128,0.4)"),
                 showlegend=True, legend=dict(orientation="h", y=-0.12, x=0.5, xanchor="center"))
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, config=CHART_CONFIG)
         else:
             st.info(t("no_data_for_tab", L))
 
@@ -1542,7 +1669,7 @@ def main():
                 xaxis=dict(showgrid=False, title=""),
                 yaxis=dict(showgrid=True, gridcolor=grid_col, title="$", tickprefix="$"),
                 showlegend=True, legend=dict(orientation="h", y=-0.12, x=0.5, xanchor="center"))
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, config=CHART_CONFIG)
         else:
             st.info(t("no_data_for_tab", L))
 
@@ -1572,7 +1699,7 @@ def main():
                 yaxis=dict(showgrid=True, gridcolor=grid_col, title="$",
                            zeroline=True, zerolinecolor="rgba(128,128,128,0.4)"),
                 showlegend=True, legend=dict(orientation="h", y=-0.12, x=0.5, xanchor="center"))
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, config=CHART_CONFIG)
         else:
             st.info(t("no_data_for_tab", L))
 
@@ -1603,7 +1730,7 @@ def main():
                 xaxis=dict(showgrid=False, title=""),
                 yaxis=dict(showgrid=True, gridcolor=grid_col, title="%", autorange=True),
                 showlegend=False)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, config=CHART_CONFIG)
         else:
             st.info(t("no_data_for_tab", L))
 
@@ -1635,7 +1762,7 @@ def main():
                 yaxis=dict(showgrid=True, gridcolor=grid_col, title="%",
                            zeroline=True, zerolinecolor="rgba(128,128,128,0.4)"),
                 showlegend=False)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, config=CHART_CONFIG)
         else:
             st.info(t("no_data_for_tab", L))
 
@@ -1727,7 +1854,7 @@ def main():
         fig_pie = px.pie(portfel_df, values="Wartość ($)", names="Ticker", color_discrete_sequence=paleta, hole=0.4)
         fig_pie.update_traces(textposition="inside", textinfo="percent+label")
         fig_pie.update_layout(**{**layout_base, "height": 350}, legend=dict(orientation="h", y=-0.2))
-        st.plotly_chart(fig_pie, use_container_width=True)
+        st.plotly_chart(fig_pie, use_container_width=True, config=CHART_CONFIG)
     with ch2:
         st.markdown(f'<div class="section-header">{t("daily_volatility", L)}</div>', unsafe_allow_html=True)
         n_tickers = len(portfel_df)
@@ -1747,7 +1874,7 @@ def main():
             yaxis=dict(showgrid=False, tickfont=dict(size=9), automargin=True),
             bargap=0.4,
         )
-        st.plotly_chart(fig_vol, use_container_width=True)
+        st.plotly_chart(fig_vol, use_container_width=True, config=CHART_CONFIG)
 
     st.markdown("---")
     st.markdown(f'<p style="text-align:center;color:#64748b;font-size:0.75rem;font-weight:500;">'
