@@ -11,6 +11,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, date, timedelta
 import os
+import requests
 
 from firebase_config import (
     inicjalizuj_firebase, zarejestruj_uzytkownika, zaloguj_uzytkownika,
@@ -132,6 +133,59 @@ CHART_CONFIG = {
     "modeBarButtonsToAdd": ["drawline", "eraseshape"],
     "modeBarStyle": {"bgcolor": "rgba(19,23,34,0.8)", "color": "#787B86", "activecolor": "#2962FF"},
 }
+
+# --- Crypto detection & BloFin API ---
+CRYPTO_BASE = {"BTC", "ETH", "SOL", "XRP", "ADA", "DOGE", "AVAX", "DOT", "LINK", "MATIC",
+               "SHIB", "LTC", "UNI", "ATOM", "FIL", "APT", "ARB", "OP", "SUI", "SEI",
+               "NEAR", "FTM", "INJ", "TIA", "PEPE", "WIF", "BONK", "RENDER", "TRX",
+               "TON", "BNB", "AAVE", "MKR", "CRV", "SUSHI"}
+
+def is_crypto(ticker: str) -> bool:
+    """Auto-detect if ticker is a cryptocurrency."""
+    t = ticker.upper()
+    if any(t.endswith(s) for s in ("-USD", "-USDT", "-EUR", "-GBP")):
+        return True
+    base = t.split("-")[0].split("/")[0]
+    return base in CRYPTO_BASE
+
+def ticker_to_blofin(ticker: str) -> str:
+    """Convert user ticker to BloFin instId (e.g. 'BTC-USD' → 'BTC-USDT')."""
+    t = ticker.upper().replace("/", "-")
+    for suffix in ("-USD", "-EUR", "-GBP"):
+        if t.endswith(suffix):
+            return t.replace(suffix, "-USDT")
+    if "-" not in t:
+        return t + "-USDT"
+    return t
+
+BLOFIN_BAR_MAP = {
+    "15m": "15m", "30m": "30m", "1h": "1H", "2h": "2H", "4h": "4H",
+    "12h": "12H", "1D": "1D", "3D": "3D", "5D": "1D",  # 5D not native, use 1D + resample
+    "1W": "1W", "1M": "1M",
+}
+
+@st.cache_data(ttl=30)  # cache 30s for near-real-time
+def fetch_blofin_candles(inst_id: str, bar: str = "1D", limit: int = 300) -> pd.DataFrame:
+    """Fetch OHLCV candlestick data from BloFin public API (no auth needed)."""
+    url = "https://openapi.blofin.com/api/v1/market/candles"
+    params = {"instId": inst_id, "bar": bar, "limit": min(limit, 1440)}
+    try:
+        r = requests.get(url, params=params, timeout=10)
+        data = r.json()
+        if data.get("code") != "0" or not data.get("data"):
+            return pd.DataFrame()
+        # BloFin: [ts, open, high, low, close, vol, volCurrency, volCurrencyQuote, confirm]
+        rows = data["data"]
+        df = pd.DataFrame(rows, columns=["ts", "Open", "High", "Low", "Close",
+                                          "Volume", "VolCcy", "VolCcyQuote", "Confirm"])
+        df["ts"] = pd.to_datetime(df["ts"].astype(float), unit="ms")
+        df = df.set_index("ts").sort_index()
+        for c in ["Open", "High", "Low", "Close", "Volume"]:
+            df[c] = pd.to_numeric(df[c], errors="coerce")
+        df = df[["Open", "High", "Low", "Close", "Volume"]]
+        return df
+    except Exception:
+        return pd.DataFrame()
 
 # =============================================================================
 # MOTYWY I CSS
@@ -1143,18 +1197,32 @@ def main():
 
     # ===================== TAB: INDICATORS =====================
     with tab_ind:
-        # Ticker selection
-        ind_c1, ind_c2 = st.columns([1, 1])
-        with ind_c1:
-            portfolio_tickers = []
-            if st.session_state.aktywny_portfel:
-                tx_l = pobierz_transakcje(db, uid, st.session_state.aktywny_portfel)
-                portfolio_tickers = sorted(set(tx["ticker"] for tx in tx_l)) if tx_l else []
-            ind_ticker = st.selectbox(t("ind_select_ticker", L), portfolio_tickers if portfolio_tickers else ["AAPL"], key="ind_ticker")
-        with ind_c2:
-            custom_tk = st.text_input(t("ind_custom_ticker", L), key="ind_custom", placeholder="TSLA, BTC-USD...")
-            if custom_tk.strip():
-                ind_ticker = custom_tk.strip().upper()
+        # --- Unified Ticker Search (TradingView-style) ---
+        portfolio_tickers = []
+        if st.session_state.aktywny_portfel:
+            tx_l = pobierz_transakcje(db, uid, st.session_state.aktywny_portfel)
+            portfolio_tickers = sorted(set(tx["ticker"] for tx in tx_l)) if tx_l else []
+
+        # Quick-access chips for portfolio tickers
+        if portfolio_tickers:
+            chip_cols = st.columns(min(len(portfolio_tickers), 8) + 1)
+            for i, tk in enumerate(portfolio_tickers[:8]):
+                with chip_cols[i]:
+                    if st.button(tk, key=f"ind_chip_{tk}", use_container_width=True,
+                                 type="primary" if st.session_state.get("ind_search", "") == tk else "secondary"):
+                        st.session_state.ind_search = tk
+                        st.rerun()
+            with chip_cols[-1]:
+                st.markdown("<small style='color:#787B86; line-height:2.5'>📌 portfel</small>", unsafe_allow_html=True)
+
+        # Single search input
+        search_val = st.text_input("🔍 " + t("ind_select_ticker", L), key="ind_search",
+                                    placeholder="AAPL, MSTR, BTC-USD, ETH, SOL...",
+                                    label_visibility="collapsed")
+        ind_ticker = search_val.strip().upper() if search_val.strip() else (portfolio_tickers[0] if portfolio_tickers else "AAPL")
+        # Show source badge
+        source_label = "🟢 BloFin (real-time)" if is_crypto(ind_ticker) else "📊 yfinance"
+        st.caption(f"**{ind_ticker}** — {source_label}")
 
         # ======= CANDLE INTERVAL SELECTOR (TradingView-style) =======
         # Each entry: (yf_interval, yf_period_or_days, resample_rule_or_None)
@@ -1236,12 +1304,31 @@ def main():
 
         if ind_ticker:
             with st.spinner("⏳"):
+                use_blofin = is_crypto(ind_ticker)
                 end_dt = date.today()
-                # Fetch enough data for SMA 200 + view range
-                extra_days = 220 if yf_interval in ("1d", "1wk", "1mo") else 30
-                start_dt = end_dt - timedelta(days=min(view_days + extra_days, max_days))
-                df = yf.download(ind_ticker, start=start_dt, end=end_dt,
-                                 interval=yf_interval, progress=False)
+
+                if use_blofin:
+                    # --- BloFin API for crypto (real-time) ---
+                    inst_id = ticker_to_blofin(ind_ticker)
+                    bf_bar = BLOFIN_BAR_MAP.get(current_iv, "1D")
+                    # Estimate needed candle count from view_days
+                    candle_est = {"15m": 96, "30m": 48, "1h": 24, "2h": 12, "4h": 6,
+                                  "12h": 2, "1D": 1, "3D": 0.33, "5D": 0.2, "1W": 0.14, "1M": 0.033}
+                    per_day = candle_est.get(current_iv, 1)
+                    limit = max(int(view_days * per_day * 1.5) + 220, 300)  # extra for SMA 200
+                    df = fetch_blofin_candles(inst_id, bf_bar, limit)
+                    # Resample 5D from 1D if needed
+                    if current_iv == "5D" and not df.empty:
+                        df = df.resample("5D").agg({
+                            "Open": "first", "High": "max", "Low": "min",
+                            "Close": "last", "Volume": "sum"}).dropna()
+                else:
+                    # --- yfinance for stocks ---
+                    extra_days = 220 if yf_interval in ("1d", "1wk", "1mo") else 30
+                    start_dt = end_dt - timedelta(days=min(view_days + extra_days, max_days))
+                    df = yf.download(ind_ticker, start=start_dt, end=end_dt,
+                                     interval=yf_interval, progress=False)
+
                 if df.empty or len(df) < 2:
                     st.warning(t("ind_no_data", L))
                 else:
@@ -1249,8 +1336,8 @@ def main():
                     if isinstance(df.columns, pd.MultiIndex):
                         df.columns = df.columns.get_level_values(0)
 
-                    # --- Resample if needed (for 2h, 4h, 12h, 3D, 5D) ---
-                    if resample_rule:
+                    # --- Resample if needed (yfinance only: 2h, 4h, 12h, 3D, 5D) ---
+                    if resample_rule and not use_blofin:
                         # Map our labels to pandas offset aliases
                         resample_map = {"2h": "2h", "4h": "4h", "12h": "12h", "3D": "3D", "5D": "5D"}
                         rule = resample_map.get(resample_rule, resample_rule)
