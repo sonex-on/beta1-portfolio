@@ -1156,21 +1156,79 @@ def main():
             if custom_tk.strip():
                 ind_ticker = custom_tk.strip().upper()
 
-        # Timeframe buttons (daily candles — min 1 week for readable chart)
-        tf_options = {"1W": 7, "2W": 14, "1M": 30, "3M": 90, "6M": 180, "1Y": 365, "3Y": 1095}
-        tf_cols = st.columns(len(tf_options))
-        if "ind_tf" not in st.session_state:
-            st.session_state.ind_tf = "3M"
-        # Reset invalid timeframe from old session
-        if st.session_state.ind_tf not in tf_options:
-            st.session_state.ind_tf = "3M"
-        for i, (label, _) in enumerate(tf_options.items()):
-            with tf_cols[i]:
-                if st.button(label, key=f"ind_tf_{label}", use_container_width=True,
-                             type="primary" if st.session_state.ind_tf == label else "secondary"):
-                    st.session_state.ind_tf = label
+        # ======= CANDLE INTERVAL SELECTOR (TradingView-style) =======
+        # Each entry: (yf_interval, yf_period_or_days, resample_rule_or_None)
+        CANDLE_INTERVALS = {
+            "15m":  ("15m",  60,   None),
+            "30m":  ("30m",  60,   None),
+            "1h":   ("1h",   730,  None),
+            "2h":   ("1h",   730,  "2h"),
+            "4h":   ("1h",   730,  "4h"),
+            "12h":  ("1h",   730,  "12h"),
+            "1D":   ("1d",   3650, None),
+            "3D":   ("1d",   3650, "3D"),
+            "5D":   ("1d",   3650, "5D"),
+            "1W":   ("1wk",  3650, None),
+            "1M":   ("1mo",  7300, None),
+        }
+
+        # Default view ranges (approx candles to show initially per interval)
+        DEFAULT_VIEW_DAYS = {
+            "15m": 3, "30m": 5, "1h": 14, "2h": 21, "4h": 30,
+            "12h": 60, "1D": 90, "3D": 180, "5D": 365, "1W": 730, "1M": 1825,
+        }
+
+        # --- Favorites (pinned intervals, max 5) ---
+        if "ind_fav_intervals" not in st.session_state:
+            st.session_state.ind_fav_intervals = ["1h", "4h", "1D", "1W", "1M"]
+        if "ind_interval" not in st.session_state:
+            st.session_state.ind_interval = "1D"
+        # Guard against stale session
+        if st.session_state.ind_interval not in CANDLE_INTERVALS:
+            st.session_state.ind_interval = "1D"
+
+        # --- Toolbar row: pinned favorites + dropdown for the rest ---
+        fav_list = st.session_state.ind_fav_intervals
+        other_intervals = [k for k in CANDLE_INTERVALS if k not in fav_list]
+
+        toolbar_cols = st.columns(len(fav_list) + 1)
+        for i, label in enumerate(fav_list):
+            with toolbar_cols[i]:
+                is_active = st.session_state.ind_interval == label
+                if st.button(label, key=f"ind_iv_{label}", use_container_width=True,
+                             type="primary" if is_active else "secondary"):
+                    st.session_state.ind_interval = label
                     st.rerun()
-        tf_days = tf_options[st.session_state.ind_tf]
+        # "More" dropdown for non-pinned intervals
+        with toolbar_cols[-1]:
+            more_choice = st.selectbox(
+                "⏱️", options=["..."] + other_intervals,
+                index=0, key="ind_more_iv", label_visibility="collapsed",
+            )
+            if more_choice != "..." and more_choice != st.session_state.ind_interval:
+                st.session_state.ind_interval = more_choice
+                st.rerun()
+
+        # --- Pin/Unpin management (expander) ---
+        with st.expander("⭐ " + t("ind_select_indicators", L).split(" ")[0] + " — ulubione interwały", expanded=False):
+            st.caption("Zaznacz do 5 ulubionych interwałów (będą widoczne na pasku)")
+            new_favs = []
+            cols_fav = st.columns(len(CANDLE_INTERVALS))
+            for idx, iv_name in enumerate(CANDLE_INTERVALS.keys()):
+                with cols_fav[idx]:
+                    checked = st.checkbox(iv_name, value=iv_name in fav_list, key=f"fav_cb_{iv_name}")
+                    if checked:
+                        new_favs.append(iv_name)
+            if new_favs != fav_list:
+                if len(new_favs) <= 5:
+                    st.session_state.ind_fav_intervals = new_favs
+                    st.rerun()
+                else:
+                    st.warning("Maks. 5 ulubionych!")
+
+        current_iv = st.session_state.ind_interval
+        yf_interval, max_days, resample_rule = CANDLE_INTERVALS[current_iv]
+        view_days = DEFAULT_VIEW_DAYS[current_iv]
 
         # Indicator selection
         INDICATORS = ["SMA 20", "SMA 50", "SMA 200", "EMA 12", "EMA 26", "Bollinger Bands", "RSI", "MACD", "Volume"]
@@ -1179,14 +1237,28 @@ def main():
         if ind_ticker:
             with st.spinner("⏳"):
                 end_dt = date.today()
-                start_dt = end_dt - timedelta(days=tf_days + 220)  # extra for SMA 200
-                df = yf.download(ind_ticker, start=start_dt, end=end_dt, progress=False)
+                # Fetch enough data for SMA 200 + view range
+                extra_days = 220 if yf_interval in ("1d", "1wk", "1mo") else 30
+                start_dt = end_dt - timedelta(days=min(view_days + extra_days, max_days))
+                df = yf.download(ind_ticker, start=start_dt, end=end_dt,
+                                 interval=yf_interval, progress=False)
                 if df.empty or len(df) < 2:
                     st.warning(t("ind_no_data", L))
                 else:
                     # Flatten MultiIndex columns if needed
                     if isinstance(df.columns, pd.MultiIndex):
                         df.columns = df.columns.get_level_values(0)
+
+                    # --- Resample if needed (for 2h, 4h, 12h, 3D, 5D) ---
+                    if resample_rule:
+                        # Map our labels to pandas offset aliases
+                        resample_map = {"2h": "2h", "4h": "4h", "12h": "12h", "3D": "3D", "5D": "5D"}
+                        rule = resample_map.get(resample_rule, resample_rule)
+                        df = df.resample(rule).agg({
+                            "Open": "first", "High": "max", "Low": "min",
+                            "Close": "last", "Volume": "sum",
+                        }).dropna()
+
                     close = df["Close"].squeeze()
                     high = df["High"].squeeze()
                     low = df["Low"].squeeze()
@@ -1222,7 +1294,7 @@ def main():
                         macd_signal = macd_data.ewm(span=9).mean()
 
                     # Trim to requested timeframe
-                    trim_start = end_dt - timedelta(days=tf_days)
+                    trim_start = end_dt - timedelta(days=view_days)
                     close = close[close.index >= str(trim_start)]
                     high = high[high.index >= str(trim_start)]
                     low = low[low.index >= str(trim_start)]
