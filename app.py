@@ -1278,8 +1278,8 @@ def main():
                 st.rerun()
 
         # --- Pin/Unpin management (expander) ---
-        with st.expander("⭐ " + t("ind_select_indicators", L).split(" ")[0] + " — ulubione interwały", expanded=False):
-            st.caption("Zaznacz do 5 ulubionych interwałów (będą widoczne na pasku)")
+        with st.expander("Favourite intervals", expanded=False):
+            st.caption("Pin up to 5 intervals to the toolbar")
             new_favs = []
             cols_fav = st.columns(len(CANDLE_INTERVALS))
             for idx, iv_name in enumerate(CANDLE_INTERVALS.keys()):
