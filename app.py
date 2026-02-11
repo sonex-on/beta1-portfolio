@@ -1197,31 +1197,69 @@ def main():
 
     # ===================== TAB: INDICATORS =====================
     with tab_ind:
+        # --- Compact CSS for TradingView-style toolbar ---
+        st.markdown("""
+        <style>
+        /* Compact portfolio chips */
+        div[data-testid="stHorizontalBlock"]:has(button[kind="secondary"]) .stButton > button,
+        div.tv-chips .stButton > button,
+        div.tv-intervals .stButton > button {
+            padding: 2px 10px !important;
+            font-size: 12px !important;
+            min-height: 28px !important;
+            height: 28px !important;
+            line-height: 1 !important;
+            border-radius: 4px !important;
+        }
+        div.tv-chips .stButton > button[kind="primary"],
+        div.tv-intervals .stButton > button[kind="primary"] {
+            padding: 2px 10px !important;
+            font-size: 12px !important;
+            min-height: 28px !important;
+            height: 28px !important;
+        }
+        div.tv-chips, div.tv-intervals {
+            margin-bottom: -10px !important;
+        }
+        div.tv-chips [data-testid="stHorizontalBlock"],
+        div.tv-intervals [data-testid="stHorizontalBlock"] {
+            gap: 0.3rem !important;
+        }
+        div.tv-intervals .stSelectbox > div > div {
+            min-height: 28px !important;
+            font-size: 12px !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
         # --- Unified Ticker Search (TradingView-style) ---
         portfolio_tickers = []
         if st.session_state.aktywny_portfel:
             tx_l = pobierz_transakcje(db, uid, st.session_state.aktywny_portfel)
             portfolio_tickers = sorted(set(tx["ticker"] for tx in tx_l)) if tx_l else []
 
-        # Quick-access chips for portfolio tickers
+        # Quick-access chips for portfolio tickers (compact)
         if portfolio_tickers:
-            chip_cols = st.columns(min(len(portfolio_tickers), 8) + 1)
-            for i, tk in enumerate(portfolio_tickers[:8]):
-                with chip_cols[i]:
-                    if st.button(tk, key=f"ind_chip_{tk}", use_container_width=True,
-                                 type="primary" if st.session_state.get("ind_search", "") == tk else "secondary"):
-                        st.session_state.ind_search = tk
-                        st.rerun()
-            with chip_cols[-1]:
-                st.markdown("<small style='color:#787B86; line-height:2.5'>📌 portfel</small>", unsafe_allow_html=True)
+            with st.container():
+                st.markdown('<div class="tv-chips">', unsafe_allow_html=True)
+                chip_cols = st.columns(min(len(portfolio_tickers), 10) + 1)
+                for i, tk in enumerate(portfolio_tickers[:10]):
+                    with chip_cols[i]:
+                        if st.button(tk, key=f"ind_chip_{tk}", use_container_width=True,
+                                     type="primary" if st.session_state.get("ind_search", "") == tk else "secondary"):
+                            st.session_state.ind_search = tk
+                            st.rerun()
+                with chip_cols[-1]:
+                    st.markdown("<small style='color:#787B86'>portfel</small>", unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
 
         # Single search input
-        search_val = st.text_input("🔍 " + t("ind_select_ticker", L), key="ind_search",
+        search_val = st.text_input("Search ticker", key="ind_search",
                                     placeholder="AAPL, MSTR, BTC-USD, ETH, SOL...",
                                     label_visibility="collapsed")
         ind_ticker = search_val.strip().upper() if search_val.strip() else (portfolio_tickers[0] if portfolio_tickers else "AAPL")
         # Show source badge
-        source_label = "🟢 BloFin (real-time)" if is_crypto(ind_ticker) else "📊 yfinance"
+        source_label = "BloFin (real-time)" if is_crypto(ind_ticker) else "yfinance"
         st.caption(f"**{ind_ticker}** — {source_label}")
 
         # ======= CANDLE INTERVAL SELECTOR (TradingView-style) =======
@@ -1259,6 +1297,7 @@ def main():
         fav_list = st.session_state.ind_fav_intervals
         other_intervals = [k for k in CANDLE_INTERVALS if k not in fav_list]
 
+        st.markdown('<div class="tv-intervals">', unsafe_allow_html=True)
         toolbar_cols = st.columns(len(fav_list) + 1)
         for i, label in enumerate(fav_list):
             with toolbar_cols[i]:
@@ -1270,12 +1309,13 @@ def main():
         # "More" dropdown for non-pinned intervals
         with toolbar_cols[-1]:
             more_choice = st.selectbox(
-                "⏱️", options=["..."] + other_intervals,
+                "more", options=["..."] + other_intervals,
                 index=0, key="ind_more_iv", label_visibility="collapsed",
             )
             if more_choice != "..." and more_choice != st.session_state.ind_interval:
                 st.session_state.ind_interval = more_choice
                 st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
         # --- Pin/Unpin management (expander) ---
         with st.expander("Favourite intervals", expanded=False):
