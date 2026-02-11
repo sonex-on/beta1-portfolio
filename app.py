@@ -1368,8 +1368,8 @@ def main():
         st.markdown('</div>', unsafe_allow_html=True)
 
         # --- Pin/Unpin management (expander) ---
-        with st.expander(t("ind_fav_label", L) if "ind_fav_label" in (T.get(L) or {}) else "Favourite intervals", expanded=False):
-            st.caption(t("ind_fav_caption", L) if "ind_fav_caption" in (T.get(L) or {}) else "Pin up to 5 intervals to the toolbar")
+        with st.expander(t("ind_fav_label", L), expanded=False):
+            st.caption(t("ind_fav_caption", L))
             new_favs = []
             cols_fav = st.columns(len(CANDLE_INTERVALS))
             for idx, iv_name in enumerate(CANDLE_INTERVALS.keys()):
