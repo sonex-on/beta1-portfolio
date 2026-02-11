@@ -1222,10 +1222,9 @@ def main():
         # --- Compact CSS for TradingView-style toolbar ---
         st.markdown("""
         <style>
-        /* Compact portfolio chips */
-        div[data-testid="stHorizontalBlock"]:has(button[kind="secondary"]) .stButton > button,
-        div.tv-chips .stButton > button,
-        div.tv-intervals .stButton > button {
+        /* ─── Compact TradingView-style buttons & inputs ─── */
+        /* ALL buttons in indicators section — chips + interval toolbar */
+        [data-testid="stButton"] > button {
             padding: 2px 10px !important;
             font-size: 12px !important;
             min-height: 28px !important;
@@ -1233,23 +1232,27 @@ def main():
             line-height: 1 !important;
             border-radius: 4px !important;
         }
-        div.tv-chips .stButton > button[kind="primary"],
-        div.tv-intervals .stButton > button[kind="primary"] {
-            padding: 2px 10px !important;
-            font-size: 12px !important;
-            min-height: 28px !important;
-            height: 28px !important;
-        }
-        div.tv-chips, div.tv-intervals {
-            margin-bottom: -10px !important;
-        }
-        div.tv-chips [data-testid="stHorizontalBlock"],
-        div.tv-intervals [data-testid="stHorizontalBlock"] {
+        /* Tighten column gaps */
+        [data-testid="stHorizontalBlock"] {
             gap: 0.3rem !important;
         }
-        div.tv-intervals .stSelectbox > div > div {
+        /* "More" dropdown */
+        [data-testid="stSelectbox"] > div > div {
             min-height: 28px !important;
             font-size: 12px !important;
+            padding-top: 2px !important;
+            padding-bottom: 2px !important;
+        }
+        /* Search input */
+        [data-testid="stTextInput"] input {
+            font-size: 13px !important;
+            height: 32px !important;
+            padding: 4px 10px !important;
+        }
+        /* Expander compact */
+        [data-testid="stExpander"] summary {
+            font-size: 12px !important;
+            padding: 4px 8px !important;
         }
         </style>
         """, unsafe_allow_html=True)
