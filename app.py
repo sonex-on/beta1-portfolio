@@ -1449,6 +1449,9 @@ def main():
 
                     # Trim to requested timeframe
                     trim_start = pd.Timestamp(end_dt - timedelta(days=view_days))
+                    # Handle tz-aware index (yfinance) vs tz-naive (BloFin)
+                    if hasattr(close.index, 'tz') and close.index.tz is not None:
+                        trim_start = trim_start.tz_localize(close.index.tz)
                     close = close[close.index >= trim_start]
                     high = high[high.index >= trim_start]
                     low = low[low.index >= trim_start]
