@@ -166,20 +166,42 @@ BLOFIN_BAR_MAP = {
 
 @st.cache_data(ttl=30)  # cache 30s for near-real-time
 def fetch_blofin_candles(inst_id: str, bar: str = "1D", limit: int = 300) -> pd.DataFrame:
-    """Fetch OHLCV candlestick data from BloFin public API (no auth needed)."""
+    """Fetch OHLCV candlestick data from BloFin public API with pagination for deep history."""
+    import time
     url = "https://openapi.blofin.com/api/v1/market/candles"
-    params = {"instId": inst_id, "bar": bar, "limit": min(limit, 1440)}
+    all_rows = []
+    remaining = limit
+    after_ts = None
+    max_pages = 6  # max 6 pages = up to 8640 candles
+
     try:
-        r = requests.get(url, params=params, timeout=10)
-        data = r.json()
-        if data.get("code") != "0" or not data.get("data"):
+        for _ in range(max_pages):
+            if remaining <= 0:
+                break
+            batch = min(remaining, 1440)
+            params = {"instId": inst_id, "bar": bar, "limit": batch}
+            if after_ts:
+                params["after"] = str(after_ts)
+            r = requests.get(url, params=params, timeout=10)
+            data = r.json()
+            if data.get("code") != "0" or not data.get("data"):
+                break
+            rows = data["data"]
+            all_rows.extend(rows)
+            remaining -= len(rows)
+            # BloFin returns newest first; last row = oldest — use 'after' to go further back
+            after_ts = int(float(rows[-1][0]))
+            if len(rows) < batch:
+                break  # no more data available
+            time.sleep(0.1)  # rate limit courtesy
+
+        if not all_rows:
             return pd.DataFrame()
-        # BloFin: [ts, open, high, low, close, vol, volCurrency, volCurrencyQuote, confirm]
-        rows = data["data"]
-        df = pd.DataFrame(rows, columns=["ts", "Open", "High", "Low", "Close",
-                                          "Volume", "VolCcy", "VolCcyQuote", "Confirm"])
+
+        df = pd.DataFrame(all_rows, columns=["ts", "Open", "High", "Low", "Close",
+                                               "Volume", "VolCcy", "VolCcyQuote", "Confirm"])
         df["ts"] = pd.to_datetime(df["ts"].astype(float), unit="ms")
-        df = df.set_index("ts").sort_index()
+        df = df.drop_duplicates(subset=["ts"]).set_index("ts").sort_index()
         for c in ["Open", "High", "Low", "Close", "Volume"]:
             df[c] = pd.to_numeric(df[c], errors="coerce")
         df = df[["Open", "High", "Low", "Close", "Volume"]]
@@ -1351,11 +1373,16 @@ def main():
                     # --- BloFin API for crypto (real-time) ---
                     inst_id = ticker_to_blofin(ind_ticker)
                     bf_bar = BLOFIN_BAR_MAP.get(current_iv, "1D")
-                    # Estimate needed candle count from view_days
+                    # Crypto: deeper history (3 months for all intervals)
+                    CRYPTO_VIEW_DAYS = {
+                        "15m": 90, "30m": 90, "1h": 90, "2h": 90, "4h": 90,
+                        "12h": 180, "1D": 365, "3D": 365, "5D": 365, "1W": 730, "1M": 1825,
+                    }
+                    view_days = CRYPTO_VIEW_DAYS.get(current_iv, view_days)
                     candle_est = {"15m": 96, "30m": 48, "1h": 24, "2h": 12, "4h": 6,
                                   "12h": 2, "1D": 1, "3D": 0.33, "5D": 0.2, "1W": 0.14, "1M": 0.033}
                     per_day = candle_est.get(current_iv, 1)
-                    limit = max(int(view_days * per_day * 1.5) + 220, 300)  # extra for SMA 200
+                    limit = max(int(view_days * per_day * 1.3) + 220, 300)  # extra for SMA 200
                     df = fetch_blofin_candles(inst_id, bf_bar, limit)
                     # Resample 5D from 1D if needed
                     if current_iv == "5D" and not df.empty:
