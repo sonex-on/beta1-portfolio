@@ -1639,7 +1639,7 @@ def main():
                             bgcolor=tv_bg, bordercolor=tv_grid,
                             font=dict(color=tv_text, size=12, family="Inter"),
                         ),
-                        dragmode="zoom",
+                        dragmode="pan",
                     )
 
                     # --- Ticker watermark ---
