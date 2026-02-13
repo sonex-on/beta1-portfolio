@@ -363,7 +363,6 @@ def zastosuj_motyw(ciemny: bool, paleta_nazwa: str):
         font-size: 16px !important;
     }}
     [data-testid="stPlotlyChart"] {{
-        min-height: 35vh;
         transition: height 0.3s ease;
     }}
 
