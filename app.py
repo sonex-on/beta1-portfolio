@@ -20,6 +20,7 @@ from firebase_config import (
     odswiez_token, wyslij_weryfikacje_email, sprawdz_weryfikacje, wyslij_reset_hasla,
 )
 from ticker_db import TICKER_DATABASE, szukaj_tickery
+from xtb_mapping import resolve_xtb_ticker
 from translations import t
 from statistics import (
     oblicz_statystyki, oblicz_drawdown_serie,
@@ -483,7 +484,11 @@ MAX_LOGIN_ATTEMPTS = 5
 @st.cache_data(ttl=86400, show_spinner=False)
 def _resolve_ticker(ticker: str) -> str:
     """Resolve a user-entered ticker to a valid yfinance symbol.
-    Tries: original → without .US suffix → without other suffixes."""
+    Uses XTB mapping first, then validates on yfinance."""
+    # 1. Apply XTB → yfinance mapping (suffix stripping, explicit aliases)
+    mapped = resolve_xtb_ticker(ticker)
+
+    # 2. Validate mapped ticker on yfinance
     def _valid(tk):
         try:
             h = yf.Ticker(tk).history(period="5d")
@@ -491,16 +496,14 @@ def _resolve_ticker(ticker: str) -> str:
         except Exception:
             return False
 
-    # 1. Try as-is
-    if _valid(ticker):
+    if _valid(mapped):
+        return mapped
+
+    # 3. If mapped ticker failed and it differs from original, try original
+    if mapped != ticker and _valid(ticker):
         return ticker
-    # 2. Try without common suffixes
-    for suffix in [".US", ".L"]:
-        if ticker.upper().endswith(suffix):
-            base = ticker[:-len(suffix)]
-            if _valid(base):
-                return base
-    return ticker  # return original if nothing found
+
+    return mapped  # return mapped even if validation fails (use as best guess)
 
 @st.cache_data(ttl=900, show_spinner=False)
 def pobierz_aktualna_cene(ticker: str) -> dict:

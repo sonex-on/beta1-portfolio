@@ -396,6 +396,15 @@ TICKER_DATABASE = {
     "EEM — iShares MSCI Emerging Markets ETF": "EEM",
     "VWO — Vanguard FTSE Emerging Markets ETF": "VWO",
     "EFA — iShares MSCI EAFE ETF": "EFA",
+    # --- XTB-style ETFs & Synthetic (auto-mapped to yfinance) ---
+    "SP500ETF — SPDR S&P 500 ETF (XTB)": "SPY",
+    "SP500ITSECTOR — S&P 500 IT Sector ETF (XTB)": "XLK",
+    "SP500FINANCIALS — S&P 500 Financials ETF (XTB)": "XLF",
+    "SP500ENERGY — S&P 500 Energy ETF (XTB)": "XLE",
+    "SP500HEALTH — S&P 500 Health Care ETF (XTB)": "XLV",
+    "SP500INDUSTRIAL — S&P 500 Industrial ETF (XTB)": "XLI",
+    "NASDAQETF — Invesco QQQ Nasdaq 100 (XTB)": "QQQ",
+    "DOWJONESETF — SPDR Dow Jones ETF (XTB)": "DIA",
 
     # =========================================================================
     # 🇵🇱 GPW — WIG20 + mWIG40 + sWIG80 + inne
