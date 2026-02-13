@@ -480,6 +480,28 @@ MAX_LOGIN_ATTEMPTS = 5
 # =============================================================================
 # YFINANCE — Pobieranie danych (Agent 2)
 # =============================================================================
+@st.cache_data(ttl=86400, show_spinner=False)
+def _resolve_ticker(ticker: str) -> str:
+    """Resolve a user-entered ticker to a valid yfinance symbol.
+    Tries: original → without .US suffix → without other suffixes."""
+    def _valid(tk):
+        try:
+            h = yf.Ticker(tk).history(period="5d")
+            return not h.empty
+        except Exception:
+            return False
+
+    # 1. Try as-is
+    if _valid(ticker):
+        return ticker
+    # 2. Try without common suffixes
+    for suffix in [".US", ".L"]:
+        if ticker.upper().endswith(suffix):
+            base = ticker[:-len(suffix)]
+            if _valid(base):
+                return base
+    return ticker  # return original if nothing found
+
 @st.cache_data(ttl=900, show_spinner=False)
 def pobierz_aktualna_cene(ticker: str) -> dict:
     """Pobiera aktualną cenę z yfinance. Cache 15 min."""
@@ -499,63 +521,32 @@ def pobierz_aktualna_cene(ticker: str) -> dict:
                     nazwa = tk
                 return {"cena": cena, "nazwa": nazwa,
                         "zmiennosc_dzienna": round(zmiennosc, 2), "error": None}
-            # Fallback: info dict
-            try:
-                info = akcja.info
-                cena = info.get("currentPrice") or info.get("regularMarketPrice") or info.get("previousClose")
-                if cena:
-                    return {"cena": float(cena), "nazwa": info.get("shortName", tk),
-                            "zmiennosc_dzienna": 0.0, "error": None}
-            except Exception:
-                pass
         except Exception:
             pass
         return None
 
-    # Try original ticker first
-    result = _fetch(ticker)
+    # Resolve ticker to valid yfinance symbol
+    resolved = _resolve_ticker(ticker)
+    result = _fetch(resolved)
     if result:
         return result
-
-    # Try without .US suffix (Polish convention for US stocks)
-    if ticker.upper().endswith(".US"):
-        alt = ticker[:-3]
-        result = _fetch(alt)
-        if result:
-            return result
-
-    # Try common suffix variations
-    for suffix in [".L", ".WA"]:
-        if ticker.upper().endswith(suffix):
-            alt = ticker[: -len(suffix)]
-            result = _fetch(alt)
-            if result:
-                return result
 
     return {"error": f"Nie znaleziono danych: {ticker}"}
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def pobierz_historie(ticker: str, data_od: str) -> pd.DataFrame:
     """Pobiera historyczne dane zamknięcia."""
-    def _try_hist(tk):
-        try:
-            hist = yf.Ticker(tk).history(start=data_od)
-            if hist.empty:
-                return pd.DataFrame()
-            hist = hist[["Close"]].reset_index()
-            hist.columns = ["Data", "Zamkniecie"]
-            hist["Data"] = pd.to_datetime(hist["Data"]).dt.tz_localize(None)
-            return hist
-        except Exception:
+    resolved = _resolve_ticker(ticker)
+    try:
+        hist = yf.Ticker(resolved).history(start=data_od)
+        if hist.empty:
             return pd.DataFrame()
-
-    result = _try_hist(ticker)
-    if not result.empty:
-        return result
-    # Try without .US suffix
-    if ticker.upper().endswith(".US"):
-        return _try_hist(ticker[:-3])
-    return pd.DataFrame()
+        hist = hist[["Close"]].reset_index()
+        hist.columns = ["Data", "Zamkniecie"]
+        hist["Data"] = pd.to_datetime(hist["Data"]).dt.tz_localize(None)
+        return hist
+    except Exception:
+        return pd.DataFrame()
 
 # =============================================================================
 # OBLICZENIA PORTFELA
@@ -581,16 +572,18 @@ def oblicz_portfel(transakcje: list) -> pd.DataFrame:
         if ilosc_netto <= 0: continue
         srednia_cena = koszt / ilosc_netto if ilosc_netto > 0 else 0
         dane = pobierz_aktualna_cene(ticker)
-        cena_akt = dane["cena"] if not dane.get("error") else srednia_cena
-        zmiennosc = dane.get("zmiennosc_dzienna", 0) if not dane.get("error") else 0
-        nazwa = dane.get("nazwa", ticker) if not dane.get("error") else ticker
+        has_error = bool(dane.get("error"))
+        cena_akt = dane["cena"] if not has_error else srednia_cena
+        zmiennosc = dane.get("zmiennosc_dzienna", 0) if not has_error else 0
+        nazwa = dane.get("nazwa", ticker) if not has_error else ticker
         wartosc = ilosc_netto * cena_akt
         zysk = wartosc - koszt
         roi = ((cena_akt - srednia_cena) / srednia_cena * 100) if srednia_cena > 0 else 0
         wyniki.append({"Ticker": ticker, "Nazwa": nazwa, "Ilość": round(ilosc_netto, 4),
             "Śr. Cena Zakupu ($)": round(srednia_cena, 2), "Cena Bieżąca ($)": round(cena_akt, 2),
             "Wartość ($)": round(wartosc, 2), "Zysk/Strata ($)": round(zysk, 2),
-            "ROI (%)": round(roi, 2), "Zmienność (%)": zmiennosc})
+            "ROI (%)": round(roi, 2), "Zmienność (%)": zmiennosc,
+            "_price_error": has_error})
     return pd.DataFrame(wyniki) if wyniki else pd.DataFrame()
 
 def oblicz_historie_portfela(transakcje: list) -> pd.DataFrame:
@@ -2187,6 +2180,17 @@ def main():
     logos_row = " ".join(f'<span class="logo-ticker">{get_logo_html(tk, 22)}<b>{tk}</b></span>&nbsp;&nbsp;' for tk in portfel_df["Ticker"])
     st.markdown(f'<div style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">{logos_row}</div>', unsafe_allow_html=True)
 
+    # --- Warning for tickers without real-time price data ---
+    if "_price_error" in portfel_df.columns:
+        failed_tickers = portfel_df[portfel_df["_price_error"] == True]["Ticker"].tolist()
+        if failed_tickers:
+            failed_str = ", ".join(f"**{t}**" for t in failed_tickers)
+            st.warning(f"⚠️ {failed_str} — brak danych na Yahoo Finance. Zysk/Strata i Zmienność mogą być nieprawidłowe. Sprawdź poprawność symboli tickerów.")
+
+    # Drop internal column before display
+    display_cols = [c for c in portfel_df.columns if not c.startswith("_")]
+    portfel_df_show = portfel_df[display_cols]
+
     def kol_w(val):
         try:
             v = float(val)
@@ -2194,7 +2198,7 @@ def main():
             elif v < 0: return "color:#FF1744;font-weight:600"
         except: pass
         return ""
-    styled = portfel_df.style.applymap(kol_w, subset=["Zysk/Strata ($)", "ROI (%)", "Zmienność (%)"]).format({
+    styled = portfel_df_show.style.applymap(kol_w, subset=["Zysk/Strata ($)", "ROI (%)", "Zmienność (%)"]).format({
         "Ilość": "{:.4f}", "Śr. Cena Zakupu ($)": "${:,.2f}", "Cena Bieżąca ($)": "${:,.2f}",
         "Wartość ($)": "${:,.2f}", "Zysk/Strata ($)": "{:+,.2f}$", "ROI (%)": "{:+.2f}%", "Zmienność (%)": "{:+.2f}%"})
     st.dataframe(styled, use_container_width=True, hide_index=True)
