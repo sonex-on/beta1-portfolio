@@ -485,20 +485,30 @@ def pobierz_aktualna_cene(ticker: str) -> dict:
     """Pobiera aktualną cenę z yfinance. Cache 15 min."""
     try:
         akcja = yf.Ticker(ticker)
-        info = akcja.info
-        cena = info.get("currentPrice") or info.get("regularMarketPrice") or info.get("previousClose")
-        if not cena:
-            hist = akcja.history(period="2d")
-            if not hist.empty:
-                cena = hist["Close"].iloc[-1]
-            else:
-                return {"error": f"Nie znaleziono danych: {ticker}"}
-        hist_5d = akcja.history(period="5d")
-        zmiennosc = 0.0
-        if len(hist_5d) >= 2:
-            zmiennosc = ((hist_5d["Close"].iloc[-1] - hist_5d["Close"].iloc[-2]) / hist_5d["Close"].iloc[-2]) * 100
-        return {"cena": float(cena), "nazwa": info.get("shortName", ticker),
-                "zmiennosc_dzienna": round(zmiennosc, 2), "error": None}
+        # --- Primary: use history (most reliable on Streamlit Cloud) ---
+        hist = akcja.history(period="5d")
+        if not hist.empty and len(hist) >= 1:
+            cena = float(hist["Close"].iloc[-1])
+            zmiennosc = 0.0
+            if len(hist) >= 2:
+                zmiennosc = ((hist["Close"].iloc[-1] - hist["Close"].iloc[-2]) / hist["Close"].iloc[-2]) * 100
+            # Try to get name from info, but don't fail if it errors
+            try:
+                nazwa = akcja.info.get("shortName", ticker)
+            except Exception:
+                nazwa = ticker
+            return {"cena": cena, "nazwa": nazwa,
+                    "zmiennosc_dzienna": round(zmiennosc, 2), "error": None}
+        # --- Fallback: try info dict ---
+        try:
+            info = akcja.info
+            cena = info.get("currentPrice") or info.get("regularMarketPrice") or info.get("previousClose")
+            if cena:
+                return {"cena": float(cena), "nazwa": info.get("shortName", ticker),
+                        "zmiennosc_dzienna": 0.0, "error": None}
+        except Exception:
+            pass
+        return {"error": f"Nie znaleziono danych: {ticker}"}
     except Exception as e:
         return {"error": f"Błąd: {str(e)[:100]}"}
 
