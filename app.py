@@ -22,6 +22,9 @@ from firebase_config import (
 from ticker_db import TICKER_DATABASE, szukaj_tickery
 from xtb_mapping import resolve_xtb_ticker
 from translations import t
+
+# Cache version — change this to force Streamlit to invalidate all caches
+_CACHE_VERSION = "v4_etf_sector_fix"
 from statistics import (
     oblicz_statystyki, oblicz_drawdown_serie,
     oblicz_growth_serie, oblicz_profit_serie,
@@ -52,7 +55,7 @@ def pobierz_benchmark_growth(ticker: str, start_date, end_date) -> pd.Series:
         return pd.Series(dtype=float)
 
 @st.cache_data(ttl=86400, show_spinner=False)
-def pobierz_sektor(ticker: str) -> str:
+def pobierz_sektor(ticker: str, _v: str = _CACHE_VERSION) -> str:
     """Fetch sector for a ticker from yfinance.
     Resolves XTB tickers first and detects ETFs via quoteType."""
     try:
@@ -495,8 +498,7 @@ MAX_LOGIN_ATTEMPTS = 5
 # =============================================================================
 # YFINANCE — Pobieranie danych (Agent 2)
 # =============================================================================
-# Cache version — change this to force Streamlit to invalidate all price caches
-_CACHE_VERSION = "v3_xtb_mapping"
+# (_CACHE_VERSION defined at top of file after imports)
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def _resolve_ticker(ticker: str, _v: str = _CACHE_VERSION) -> str:
