@@ -483,47 +483,79 @@ MAX_LOGIN_ATTEMPTS = 5
 @st.cache_data(ttl=900, show_spinner=False)
 def pobierz_aktualna_cene(ticker: str) -> dict:
     """Pobiera aktualną cenę z yfinance. Cache 15 min."""
-    try:
-        akcja = yf.Ticker(ticker)
-        # --- Primary: use history (most reliable on Streamlit Cloud) ---
-        hist = akcja.history(period="5d")
-        if not hist.empty and len(hist) >= 1:
-            cena = float(hist["Close"].iloc[-1])
-            zmiennosc = 0.0
-            if len(hist) >= 2:
-                zmiennosc = ((hist["Close"].iloc[-1] - hist["Close"].iloc[-2]) / hist["Close"].iloc[-2]) * 100
-            # Try to get name from info, but don't fail if it errors
-            try:
-                nazwa = akcja.info.get("shortName", ticker)
-            except Exception:
-                nazwa = ticker
-            return {"cena": cena, "nazwa": nazwa,
-                    "zmiennosc_dzienna": round(zmiennosc, 2), "error": None}
-        # --- Fallback: try info dict ---
+    def _fetch(tk):
+        """Inner fetch for a single ticker variant."""
         try:
-            info = akcja.info
-            cena = info.get("currentPrice") or info.get("regularMarketPrice") or info.get("previousClose")
-            if cena:
-                return {"cena": float(cena), "nazwa": info.get("shortName", ticker),
-                        "zmiennosc_dzienna": 0.0, "error": None}
+            akcja = yf.Ticker(tk)
+            hist = akcja.history(period="5d")
+            if not hist.empty and len(hist) >= 1:
+                cena = float(hist["Close"].iloc[-1])
+                zmiennosc = 0.0
+                if len(hist) >= 2:
+                    zmiennosc = ((hist["Close"].iloc[-1] - hist["Close"].iloc[-2]) / hist["Close"].iloc[-2]) * 100
+                try:
+                    nazwa = akcja.info.get("shortName", tk)
+                except Exception:
+                    nazwa = tk
+                return {"cena": cena, "nazwa": nazwa,
+                        "zmiennosc_dzienna": round(zmiennosc, 2), "error": None}
+            # Fallback: info dict
+            try:
+                info = akcja.info
+                cena = info.get("currentPrice") or info.get("regularMarketPrice") or info.get("previousClose")
+                if cena:
+                    return {"cena": float(cena), "nazwa": info.get("shortName", tk),
+                            "zmiennosc_dzienna": 0.0, "error": None}
+            except Exception:
+                pass
         except Exception:
             pass
-        return {"error": f"Nie znaleziono danych: {ticker}"}
-    except Exception as e:
-        return {"error": f"Błąd: {str(e)[:100]}"}
+        return None
+
+    # Try original ticker first
+    result = _fetch(ticker)
+    if result:
+        return result
+
+    # Try without .US suffix (Polish convention for US stocks)
+    if ticker.upper().endswith(".US"):
+        alt = ticker[:-3]
+        result = _fetch(alt)
+        if result:
+            return result
+
+    # Try common suffix variations
+    for suffix in [".L", ".WA"]:
+        if ticker.upper().endswith(suffix):
+            alt = ticker[: -len(suffix)]
+            result = _fetch(alt)
+            if result:
+                return result
+
+    return {"error": f"Nie znaleziono danych: {ticker}"}
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def pobierz_historie(ticker: str, data_od: str) -> pd.DataFrame:
     """Pobiera historyczne dane zamknięcia."""
-    try:
-        hist = yf.Ticker(ticker).history(start=data_od)
-        if hist.empty: return pd.DataFrame()
-        hist = hist[["Close"]].reset_index()
-        hist.columns = ["Data", "Zamkniecie"]
-        hist["Data"] = pd.to_datetime(hist["Data"]).dt.tz_localize(None)
-        return hist
-    except Exception:
-        return pd.DataFrame()
+    def _try_hist(tk):
+        try:
+            hist = yf.Ticker(tk).history(start=data_od)
+            if hist.empty:
+                return pd.DataFrame()
+            hist = hist[["Close"]].reset_index()
+            hist.columns = ["Data", "Zamkniecie"]
+            hist["Data"] = pd.to_datetime(hist["Data"]).dt.tz_localize(None)
+            return hist
+        except Exception:
+            return pd.DataFrame()
+
+    result = _try_hist(ticker)
+    if not result.empty:
+        return result
+    # Try without .US suffix
+    if ticker.upper().endswith(".US"):
+        return _try_hist(ticker[:-3])
+    return pd.DataFrame()
 
 # =============================================================================
 # OBLICZENIA PORTFELA
