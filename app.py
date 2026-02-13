@@ -976,7 +976,7 @@ def main():
                                 )
                                 fig_sec.update_layout(
                                     paper_bgcolor="rgba(0,0,0,0)", margin=dict(t=2, b=2, l=2, r=2),
-                                    height=120, showlegend=False,
+                                    height=80, showlegend=False,
                                     font=dict(size=9, family="Inter"),
                                 )
                                 fig_sec.update_traces(textposition="inside", textinfo="percent", textfont_size=9)
@@ -998,7 +998,7 @@ def main():
                                 )
                                 fig_comp.update_layout(
                                     paper_bgcolor="rgba(0,0,0,0)", margin=dict(t=2, b=2, l=2, r=2),
-                                    height=120, showlegend=False,
+                                    height=80, showlegend=False,
                                     font=dict(size=9, family="Inter"),
                                 )
                                 fig_comp.update_traces(textposition="inside", textinfo="percent", textfont_size=9)
