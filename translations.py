@@ -159,6 +159,7 @@ TRANSLATIONS = {
         # --- Sector Allocation ---
         "sector_title": "Alokacja sektorowa",
         "sector_unknown": "Nieznany",
+        "company_title": "Rozkład spółek",
 
         # --- Dividends ---
         "div_ticker": "Ticker",
@@ -360,6 +361,7 @@ TRANSLATIONS = {
         # --- Sector Allocation ---
         "sector_title": "Sector Allocation",
         "sector_unknown": "Unknown",
+        "company_title": "Company Breakdown",
 
         # --- Dividends ---
         "div_ticker": "Ticker",

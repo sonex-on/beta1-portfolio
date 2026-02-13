@@ -363,7 +363,7 @@ def zastosuj_motyw(ciemny: bool, paleta_nazwa: str):
         font-size: 16px !important;
     }}
     [data-testid="stPlotlyChart"] {{
-        min-height: 50vh;
+        min-height: 35vh;
         transition: height 0.3s ease;
     }}
 
@@ -887,66 +887,129 @@ def main():
         buy_label = t("buy", L)
         sell_label = t("sell", L)
 
-        opcje_tickerow = [t("type_manually", L)] + list(TICKER_DATABASE.keys())
-        wybrany_ticker = st.selectbox(
-            t("ticker_search", L), opcje_tickerow, index=0,
-            key="ticker_search", help=t("ticker_search_help", L)
-        )
-        ticker_z_bazy = TICKER_DATABASE.get(wybrany_ticker, "") if wybrany_ticker != t("type_manually", L) else ""
+        tx_left, tx_right = st.columns([1, 1])
 
-        with st.form("form_tx", clear_on_submit=True):
-            fc1, fc2 = st.columns(2)
-            with fc1:
-                ticker_in = st.text_input(t("ticker", L), value=ticker_z_bazy, placeholder="e.g. AAPL, CDR.WA")
-                typ = st.radio(t("type", L), [buy_label, sell_label], horizontal=True)
-                ilosc = st.number_input(t("quantity", L), min_value=0.0001, value=1.0, step=0.1, format="%.4f")
-            with fc2:
-                cena = st.number_input(t("purchase_price", L), min_value=0.01, value=100.0, step=0.01, format="%.2f")
-                data_tx = st.date_input(t("date", L), value=date.today())
-                notatka = st.text_input(t("note_label", L), placeholder=t("note_placeholder", L), key="tx_note")
-            dodaj = st.form_submit_button(t("add_btn", L), use_container_width=True)
+        with tx_left:
+            opcje_tickerow = [t("type_manually", L)] + list(TICKER_DATABASE.keys())
+            wybrany_ticker = st.selectbox(
+                t("ticker_search", L), opcje_tickerow, index=0,
+                key="ticker_search", help=t("ticker_search_help", L)
+            )
+            ticker_z_bazy = TICKER_DATABASE.get(wybrany_ticker, "") if wybrany_ticker != t("type_manually", L) else ""
 
-            if dodaj and st.session_state.aktywny_portfel:
-                tk = waliduj_ticker(ticker_in)
-                il, cn = waliduj_liczbe(ilosc), waliduj_liczbe(cena)
-                if not tk: st.error(t("invalid_ticker", L))
-                elif il <= 0: st.error(t("quantity_gt0", L))
-                elif cn <= 0: st.error(t("price_gt0", L))
+            with st.form("form_tx", clear_on_submit=True):
+                fc1, fc2 = st.columns(2)
+                with fc1:
+                    ticker_in = st.text_input(t("ticker", L), value=ticker_z_bazy, placeholder="e.g. AAPL, CDR.WA")
+                    typ = st.radio(t("type", L), [buy_label, sell_label], horizontal=True)
+                    ilosc = st.number_input(t("quantity", L), min_value=0.0001, value=1.0, step=0.1, format="%.4f")
+                with fc2:
+                    cena = st.number_input(t("purchase_price", L), min_value=0.01, value=100.0, step=0.01, format="%.2f")
+                    data_tx = st.date_input(t("date", L), value=date.today())
+                    notatka = st.text_input(t("note_label", L), placeholder=t("note_placeholder", L), key="tx_note")
+                dodaj = st.form_submit_button(t("add_btn", L), use_container_width=True)
+
+                if dodaj and st.session_state.aktywny_portfel:
+                    tk = waliduj_ticker(ticker_in)
+                    il, cn = waliduj_liczbe(ilosc), waliduj_liczbe(cena)
+                    if not tk: st.error(t("invalid_ticker", L))
+                    elif il <= 0: st.error(t("quantity_gt0", L))
+                    elif cn <= 0: st.error(t("price_gt0", L))
+                    else:
+                        typ_db = "Kupno" if typ == buy_label else "Sprzedaż"
+                        if typ_db == "Sprzedaż":
+                            trans_list = pobierz_transakcje(db, uid, st.session_state.aktywny_portfel)
+                            posiadane = sum(float(tx["ilosc"]) if tx["typ"]=="Kupno" else -float(tx["ilosc"])
+                                            for tx in trans_list if tx["ticker"] == tk)
+                            if il > posiadane:
+                                st.error(f"{t('only_have', L)} {posiadane:.4f} {tk}"); st.stop()
+                        tx_data = {"ticker": tk, "ilosc": il, "cena_zakupu": cn, "data": str(data_tx), "typ": typ_db}
+                        if notatka.strip():
+                            tx_data["notatka"] = notatka.strip()
+                        dodaj_transakcje(db, uid, st.session_state.aktywny_portfel, tx_data)
+                        st.success(f"✅ {typ}: {il}× {tk} @ ${cn:.2f}")
+                        st.rerun()
+
+            # --- Transaction list ---
+            st.markdown(t("transactions", L))
+            if st.session_state.aktywny_portfel:
+                transakcje_lista = pobierz_transakcje(db, uid, st.session_state.aktywny_portfel)
+                if transakcje_lista:
+                    for tx in transakcje_lista:
+                        emoji = "🟢" if tx["typ"] == "Kupno" else "🔴"
+                        typ_display = t("buy", L) if tx["typ"] == "Kupno" else t("sell", L)
+                        tc1, tc2, tc3 = st.columns([4, 0.5, 0.5])
+                        with tc1: st.caption(f"{emoji} {typ_display}: {tx['ilosc']}× {tx['ticker']} @ ${float(tx['cena_zakupu']):.2f}")
+                        with tc2:
+                            note_text = tx.get('notatka', '')
+                            if note_text:
+                                st.markdown(f'<span title="{note_text}" style="cursor:help;font-size:16px">💡</span>', unsafe_allow_html=True)
+                        with tc3:
+                            if st.button("🗑️", key=f"del_{tx['id']}"):
+                                usun_transakcje(db, uid, st.session_state.aktywny_portfel, tx["id"])
+                                st.rerun()
                 else:
-                    typ_db = "Kupno" if typ == buy_label else "Sprzedaż"
-                    if typ_db == "Sprzedaż":
-                        trans_list = pobierz_transakcje(db, uid, st.session_state.aktywny_portfel)
-                        posiadane = sum(float(tx["ilosc"]) if tx["typ"]=="Kupno" else -float(tx["ilosc"])
-                                        for tx in trans_list if tx["ticker"] == tk)
-                        if il > posiadane:
-                            st.error(f"{t('only_have', L)} {posiadane:.4f} {tk}"); st.stop()
-                    tx_data = {"ticker": tk, "ilosc": il, "cena_zakupu": cn, "data": str(data_tx), "typ": typ_db}
-                    if notatka.strip():
-                        tx_data["notatka"] = notatka.strip()
-                    dodaj_transakcje(db, uid, st.session_state.aktywny_portfel, tx_data)
-                    st.success(f"✅ {typ}: {il}× {tk} @ ${cn:.2f}")
-                    st.rerun()
+                    st.info(t("no_transactions", L))
 
-        # --- Transaction list ---
-        st.markdown(t("transactions", L))
-        if st.session_state.aktywny_portfel:
-            transakcje_lista = pobierz_transakcje(db, uid, st.session_state.aktywny_portfel)
-            if transakcje_lista:
-                for tx in transakcje_lista:
-                    emoji = "🟢" if tx["typ"] == "Kupno" else "🔴"
-                    typ_display = t("buy", L) if tx["typ"] == "Kupno" else t("sell", L)
-                    tc1, tc2, tc3 = st.columns([4, 0.5, 0.5])
-                    with tc1: st.caption(f"{emoji} {typ_display}: {tx['ilosc']}× {tx['ticker']} @ ${float(tx['cena_zakupu']):.2f}")
-                    with tc2:
-                        note_text = tx.get('notatka', '')
-                        if note_text:
-                            st.markdown(f'<span title="{note_text}" style="cursor:help;font-size:16px">💡</span>', unsafe_allow_html=True)
-                    with tc3:
-                        if st.button("🗑️", key=f"del_{tx['id']}"):
-                            usun_transakcje(db, uid, st.session_state.aktywny_portfel, tx["id"])
-                            st.rerun()
-            else:
-                st.info(t("no_transactions", L))
+        with tx_right:
+            # --- Allocation donuts (sector + company) inside Transakcje tab ---
+            if st.session_state.aktywny_portfel:
+                _tx_data = pobierz_transakcje(db, uid, st.session_state.aktywny_portfel)
+                if _tx_data:
+                    _pf = oblicz_portfel(_tx_data)
+                    if not _pf.empty:
+                        _sektory = {}
+                        _spolki = {}
+                        for _, row in _pf.iterrows():
+                            _sek = pobierz_sektor(row["Ticker"])
+                            _sek = _sek if _sek != "Unknown" else t("sector_unknown", L)
+                            _sektory[_sek] = _sektory.get(_sek, 0) + row["Wartość ($)"]
+                            _spolki[row["Ticker"]] = _spolki.get(row["Ticker"], 0) + row["Wartość ($)"]
+                        if _sektory:
+                            # Sector donut
+                            st.caption(t("sector_title", L))
+                            _ac1, _ac2 = st.columns([1, 1.2])
+                            with _ac1:
+                                fig_sec = px.pie(
+                                    names=list(_sektory.keys()), values=list(_sektory.values()),
+                                    hole=0.6, color_discrete_sequence=paleta,
+                                )
+                                fig_sec.update_layout(
+                                    paper_bgcolor="rgba(0,0,0,0)", margin=dict(t=2, b=2, l=2, r=2),
+                                    height=120, showlegend=False,
+                                    font=dict(size=9, family="Inter"),
+                                )
+                                fig_sec.update_traces(textposition="inside", textinfo="percent", textfont_size=9)
+                                st.plotly_chart(fig_sec, use_container_width=True, config=CHART_CONFIG)
+                            with _ac2:
+                                _leg = ""
+                                for s, v in sorted(_sektory.items(), key=lambda x: -x[1]):
+                                    pct = v / sum(_sektory.values()) * 100
+                                    _leg += f'<div style="font-size:11px;padding:1px 0"><b>{s}</b> — ${v:,.0f} ({pct:.1f}%)</div>'
+                                st.markdown(_leg, unsafe_allow_html=True)
+                            # Company donut
+                            st.caption(t("company_title", L))
+                            _bc1, _bc2 = st.columns([1, 1.2])
+                            with _bc1:
+                                _cp = paleta[2:] + paleta[:2] if len(paleta) > 2 else paleta
+                                fig_comp = px.pie(
+                                    names=list(_spolki.keys()), values=list(_spolki.values()),
+                                    hole=0.6, color_discrete_sequence=_cp,
+                                )
+                                fig_comp.update_layout(
+                                    paper_bgcolor="rgba(0,0,0,0)", margin=dict(t=2, b=2, l=2, r=2),
+                                    height=120, showlegend=False,
+                                    font=dict(size=9, family="Inter"),
+                                )
+                                fig_comp.update_traces(textposition="inside", textinfo="percent", textfont_size=9)
+                                st.plotly_chart(fig_comp, use_container_width=True, config=CHART_CONFIG)
+                            with _bc2:
+                                _leg2 = ""
+                                _total = sum(_spolki.values())
+                                for tk, v in sorted(_spolki.items(), key=lambda x: -x[1]):
+                                    pct = v / _total * 100
+                                    _leg2 += f'<div style="font-size:11px;padding:1px 0"><b>{tk}</b> — ${v:,.0f} ({pct:.1f}%)</div>'
+                                st.markdown(_leg2, unsafe_allow_html=True)
 
     with tab_imp:
         imp_ocr, imp_csv = st.tabs(["📸 OCR", "📄 CSV"])
@@ -1777,31 +1840,7 @@ def main():
             f'<div class="value {ng_kz}">{najgorszy["Ticker"] if ng_roi < 0 else najlepszy["Ticker"]}</div>'
             f'<div class="{"loss-badge" if ng_roi < 0 else "sub delta-positive"}">{"" if ng_roi < 0 else "+"}{(ng_roi if ng_roi < 0 else najlepszy["ROI (%)"]):+.2f}%</div></div>', unsafe_allow_html=True)
 
-    # --- Sector Allocation (compact) ---
-    sektory = {}
-    for _, row in portfel_df.iterrows():
-        sektor = pobierz_sektor(row["Ticker"])
-        sektor = sektor if sektor != "Unknown" else t("sector_unknown", L)
-        sektory[sektor] = sektory.get(sektor, 0) + row["Wartość ($)"]
-    if sektory:
-        pie_c1, pie_c2 = st.columns([1, 3])
-        with pie_c1:
-            fig_pie = px.pie(
-                names=list(sektory.keys()), values=list(sektory.values()),
-                hole=0.55, color_discrete_sequence=paleta,
-            )
-            fig_pie.update_layout(
-                paper_bgcolor="rgba(0,0,0,0)", margin=dict(t=5, b=5, l=5, r=5),
-                height=160, showlegend=False,
-                font=dict(size=10, family="Inter"),
-            )
-            fig_pie.update_traces(textposition="inside", textinfo="percent")
-            st.plotly_chart(fig_pie, use_container_width=True, config=CHART_CONFIG)
-        with pie_c2:
-            st.caption(t("sector_title", L))
-            for s, v in sorted(sektory.items(), key=lambda x: -x[1]):
-                pct = v / sum(sektory.values()) * 100
-                st.markdown(f"<small>**{s}** — ${v:,.0f} ({pct:.1f}%)</small>", unsafe_allow_html=True)
+
 
     # =========================================================================
     # CHART TABS — ARCHITECT + CHART MASTER
@@ -1813,7 +1852,7 @@ def main():
     layout_base = dict(
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color=font_col, family="Inter"),
-        margin=dict(t=20, b=40, l=50, r=30), height=600,
+        margin=dict(t=20, b=40, l=50, r=30), height=400,
         hovermode="x unified",
         transition=dict(duration=500, easing="cubic-in-out"),
     )
