@@ -48,19 +48,65 @@ XTB_TO_YFINANCE = {
     # --- Crypto CFDs (XTB format) ---
     "BITCOIN":          "BTC-USD",
     "ETHEREUM":         "ETH-USD",
-    # --- Popular XTB ETFs (European-listed, UCITS) ---
-    "SXR8.DE":          "SXR8.DE",  # iShares Core S&P 500 UCITS (Acc EUR)
-    "VUAA.DE":          "VUAA.DE",  # Vanguard S&P 500 UCITS (Acc EUR)
-    "QDVE.DE":          "QDVE.DE",  # iShares S&P 500 IT Sector UCITS (Acc EUR)
-    "VUSA.UK":          "VUSA.L",   # Vanguard S&P 500 UCITS (Dist GBP) → .L on yfinance
-    "IUSA.UK":          "IUSA.L",   # iShares S&P 500 UCITS (Dist GBP)
-    "SPY5.UK":          "SPY5.L",   # SPDR S&P 500 UCITS (Dist GBP)
-    "EQQQ.UK":          "EQQQ.L",   # Invesco EQQQ NASDAQ-100 UCITS
-    "CSPX.UK":          "CSPX.L",   # iShares Core S&P 500 UCITS (Acc USD)
-    "IUIT.UK":          "IUIT.L",   # iShares S&P 500 IT Sector UCITS (Acc USD)
-    "VWRL.UK":          "VWRL.L",   # Vanguard FTSE All-World UCITS
-    "VWCE.DE":          "VWCE.DE",  # Vanguard FTSE All-World UCITS (Acc EUR)
-    "IWDA.UK":          "IWDA.L",   # iShares Core MSCI World UCITS
+
+    # ─── Popular XTB ETFs (European UCITS) — verified on yfinance ──────────
+    # All .UK entries map to .L (London SE on yfinance)
+    # All .DE entries stay as .DE
+
+    # --- S&P 500 ETFs ---
+    "CSPX.UK":  "CSPX.L",   # iShares Core S&P 500 UCITS (Acc USD)
+    "VUAG.UK":  "VUAG.L",   # Vanguard S&P 500 UCITS (Acc GBP)
+    "VUSA.UK":  "VUSA.L",   # Vanguard S&P 500 UCITS (Dist GBP)
+    "SPY5.UK":  "SPY5.L",   # SPDR S&P 500 UCITS (Dist GBP)
+    "IUSA.UK":  "IUSA.L",   # iShares S&P 500 UCITS (Dist GBP)
+    "SXR8.DE":  "SXR8.DE",  # iShares Core S&P 500 UCITS (Acc EUR)
+    "VUAA.DE":  "VUAA.DE",  # Vanguard S&P 500 UCITS (Acc EUR)
+    "VUSA.DE":  "VUSA.DE",  # Vanguard S&P 500 UCITS (Dist EUR)
+
+    # --- S&P 500 IT Sector ---
+    "IUIT.UK":  "IUIT.L",   # iShares S&P 500 IT Sector UCITS (Acc USD)
+    "QDVE.DE":  "QDVE.DE",  # iShares S&P 500 IT Sector UCITS (Acc EUR)
+
+    # --- Nasdaq 100 ---
+    "EQQQ.UK":  "EQQQ.L",   # Invesco EQQQ Nasdaq-100 UCITS (Dist GBP)
+    "SXRV.DE":  "SXRV.DE",  # iShares Nasdaq 100 UCITS (Acc EUR)
+
+    # --- MSCI World ---
+    "IWDA.UK":  "IWDA.L",   # iShares Core MSCI World UCITS (Acc USD)
+    "SWDA.UK":  "SWDA.L",   # iShares Core MSCI World UCITS (Acc GBp)
+    "HMWO.UK":  "HMWO.L",   # HSBC MSCI World UCITS
+    "EUNL.DE":  "EUNL.DE",  # iShares Core MSCI World UCITS (Acc EUR)
+    "XDWD.DE":  "XDWD.DE",  # Xtrackers MSCI World UCITS
+    "XDWL.DE":  "XDWL.DE",  # Xtrackers MSCI World UCITS (Dist)
+    "2B7K.DE":  "2B7K.DE",  # iShares MSCI World SRI UCITS (Acc EUR)
+
+    # --- MSCI ACWI / FTSE All-World ---
+    "ISAC.UK":  "ISAC.L",   # iShares MSCI ACWI UCITS
+    "VWRL.UK":  "VWRL.L",   # Vanguard FTSE All-World UCITS (Dist GBP)
+    "VWRP.UK":  "VWRP.L",   # Vanguard FTSE All-World UCITS (Acc GBP)
+    "VWCE.DE":  "VWCE.DE",  # Vanguard FTSE All-World UCITS (Acc EUR)
+
+    # --- Emerging Markets ---
+    "EIMI.UK":  "EIMI.L",   # iShares Core MSCI EM IMI UCITS
+    "VFEM.UK":  "VFEM.L",   # Vanguard FTSE EM UCITS (Dist GBP)
+    "IS3N.DE":  "IS3N.DE",  # iShares Core MSCI EM IMI UCITS (Acc EUR)
+
+    # --- Europe ---
+    "IMEA.UK":  "IMEA.L",   # iShares Core MSCI Europe UCITS
+    "VERX.UK":  "VERX.L",   # Vanguard FTSE Europe ex-UK UCITS
+
+    # --- Bonds ---
+    "IGLT.UK":  "IGLT.L",   # iShares Core UK Gilts UCITS
+    "VGOV.UK":  "VGOV.L",   # Vanguard UK Govt Bond UCITS
+    "AGBP.UK":  "AGBP.L",   # iShares Core Aggregate Bond UCITS GBP
+
+    # --- Commodities / Physical ---
+    "SGLN.UK":  "SGLN.L",   # iShares Physical Gold
+    "INRG.UK":  "INRG.L",   # iShares Global Clean Energy UCITS
+    "IQQH.DE":  "IQQH.DE",  # iShares Global Clean Energy UCITS (EUR)
+
+    # --- DAX ---
+    "DBXD.DE":  "DBXD.DE",  # Xtrackers DAX UCITS
 }
 
 # ─── Suffix mapping: XTB exchange suffix → yfinance exchange suffix ────────
