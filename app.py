@@ -481,32 +481,17 @@ MAX_LOGIN_ATTEMPTS = 5
 # =============================================================================
 # YFINANCE — Pobieranie danych (Agent 2)
 # =============================================================================
+# Cache version — change this to force Streamlit to invalidate all price caches
+_CACHE_VERSION = "v3_xtb_mapping"
+
 @st.cache_data(ttl=86400, show_spinner=False)
-def _resolve_ticker(ticker: str) -> str:
+def _resolve_ticker(ticker: str, _v: str = _CACHE_VERSION) -> str:
     """Resolve a user-entered ticker to a valid yfinance symbol.
-    Uses XTB mapping first, then validates on yfinance."""
-    # 1. Apply XTB → yfinance mapping (suffix stripping, explicit aliases)
-    mapped = resolve_xtb_ticker(ticker)
-
-    # 2. Validate mapped ticker on yfinance
-    def _valid(tk):
-        try:
-            h = yf.Ticker(tk).history(period="5d")
-            return not h.empty
-        except Exception:
-            return False
-
-    if _valid(mapped):
-        return mapped
-
-    # 3. If mapped ticker failed and it differs from original, try original
-    if mapped != ticker and _valid(ticker):
-        return ticker
-
-    return mapped  # return mapped even if validation fails (use as best guess)
+    Uses XTB mapping (deterministic, no API calls needed)."""
+    return resolve_xtb_ticker(ticker)
 
 @st.cache_data(ttl=900, show_spinner=False)
-def pobierz_aktualna_cene(ticker: str) -> dict:
+def pobierz_aktualna_cene(ticker: str, _v: str = _CACHE_VERSION) -> dict:
     """Pobiera aktualną cenę z yfinance. Cache 15 min."""
     def _fetch(tk):
         """Inner fetch for a single ticker variant."""
@@ -537,7 +522,7 @@ def pobierz_aktualna_cene(ticker: str) -> dict:
     return {"error": f"Nie znaleziono danych: {ticker}"}
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def pobierz_historie(ticker: str, data_od: str) -> pd.DataFrame:
+def pobierz_historie(ticker: str, data_od: str, _v: str = _CACHE_VERSION) -> pd.DataFrame:
     """Pobiera historyczne dane zamknięcia."""
     resolved = _resolve_ticker(ticker)
     try:
