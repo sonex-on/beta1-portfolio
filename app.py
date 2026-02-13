@@ -55,27 +55,35 @@ def pobierz_benchmark_growth(ticker: str, start_date, end_date) -> pd.Series:
         return pd.Series(dtype=float)
 
 @st.cache_data(ttl=86400, show_spinner=False)
-def pobierz_sektor(ticker: str, _v: str = _CACHE_VERSION) -> str:
+def pobierz_sektor(ticker: str, cv: str = _CACHE_VERSION) -> str:
     """Fetch sector for a ticker from yfinance.
     Resolves XTB tickers first and detects ETFs via quoteType."""
+    resolved = resolve_xtb_ticker(ticker)
+    upper = ticker.upper()
+
+    # Quick ETF detection from ticker pattern (no API call needed)
+    _etf_suffixes = (".UK", ".DE", ".NL", ".FR")
+    _etf_names = {"SP500ETF", "NASDAQETF", "DOWJONESETF", "SP500ITSECTOR",
+                  "SP500FINANCIALS", "SP500ENERGY", "SP500HEALTH"}
+    is_likely_etf = any(upper.endswith(s) for s in _etf_suffixes) or upper in _etf_names
+
     try:
-        resolved = resolve_xtb_ticker(ticker)
         info = yf.Ticker(resolved).info
-        # Check if it has a sector (stocks have it, ETFs don't)
+        # Stocks have a sector field, ETFs don't
         sector = info.get("sector", "")
         if sector:
             return sector
-        # ETFs don't have a sector — check quoteType
+        # Check quoteType for ETFs
         quote_type = info.get("quoteType", "")
         if quote_type == "ETF":
             return "ETF"
-        # Fallback: check if the ticker name suggests ETF
-        upper = ticker.upper()
-        if any(upper.endswith(s) for s in [".UK", ".DE"]) or upper in ("SP500ETF", "NASDAQETF", "DOWJONESETF"):
-            return "ETF"
-        return "Unknown"
     except Exception:
-        return "Unknown"
+        pass
+
+    # Fallback: use ticker pattern
+    if is_likely_etf:
+        return "ETF"
+    return "Unknown"
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def pobierz_korelacje(tickers: list, days: int = 90) -> pd.DataFrame:
@@ -501,13 +509,13 @@ MAX_LOGIN_ATTEMPTS = 5
 # (_CACHE_VERSION defined at top of file after imports)
 
 @st.cache_data(ttl=86400, show_spinner=False)
-def _resolve_ticker(ticker: str, _v: str = _CACHE_VERSION) -> str:
+def _resolve_ticker(ticker: str, cv: str = _CACHE_VERSION) -> str:
     """Resolve a user-entered ticker to a valid yfinance symbol.
     Uses XTB mapping (deterministic, no API calls needed)."""
     return resolve_xtb_ticker(ticker)
 
 @st.cache_data(ttl=900, show_spinner=False)
-def pobierz_aktualna_cene(ticker: str, _v: str = _CACHE_VERSION) -> dict:
+def pobierz_aktualna_cene(ticker: str, cv: str = _CACHE_VERSION) -> dict:
     """Pobiera aktualną cenę z yfinance. Cache 15 min."""
     def _fetch(tk):
         """Inner fetch for a single ticker variant."""
@@ -538,7 +546,7 @@ def pobierz_aktualna_cene(ticker: str, _v: str = _CACHE_VERSION) -> dict:
     return {"error": f"Nie znaleziono danych: {ticker}"}
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def pobierz_historie(ticker: str, data_od: str, _v: str = _CACHE_VERSION) -> pd.DataFrame:
+def pobierz_historie(ticker: str, data_od: str, cv: str = _CACHE_VERSION) -> pd.DataFrame:
     """Pobiera historyczne dane zamknięcia."""
     resolved = _resolve_ticker(ticker)
     try:
