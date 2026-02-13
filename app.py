@@ -24,7 +24,7 @@ from xtb_mapping import resolve_xtb_ticker
 from translations import t
 
 # Cache version — change this to force Streamlit to invalidate all caches
-_CACHE_VERSION = "v4_etf_sector_fix"
+_CACHE_VERSION = "v5_sector_resilient"
 from statistics import (
     oblicz_statystyki, oblicz_drawdown_serie,
     oblicz_growth_serie, oblicz_profit_serie,
@@ -54,10 +54,10 @@ def pobierz_benchmark_growth(ticker: str, start_date, end_date) -> pd.Series:
     except Exception:
         return pd.Series(dtype=float)
 
-@st.cache_data(ttl=86400, show_spinner=False)
+@st.cache_data(ttl=21600, show_spinner=False)  # 6h TTL (shorter so failed lookups retry)
 def pobierz_sektor(ticker: str, cv: str = _CACHE_VERSION) -> str:
     """Fetch sector for a ticker from yfinance.
-    Resolves XTB tickers first and detects ETFs via quoteType."""
+    Uses multiple fallback approaches for maximum reliability."""
     resolved = resolve_xtb_ticker(ticker)
     upper = ticker.upper()
 
@@ -67,20 +67,30 @@ def pobierz_sektor(ticker: str, cv: str = _CACHE_VERSION) -> str:
                   "SP500FINANCIALS", "SP500ENERGY", "SP500HEALTH"}
     is_likely_etf = any(upper.endswith(s) for s in _etf_suffixes) or upper in _etf_names
 
+    yt = yf.Ticker(resolved)
+
+    # Approach 1: Try fast_info (lightweight, less likely to fail)
     try:
-        info = yf.Ticker(resolved).info
-        # Stocks have a sector field, ETFs don't
-        sector = info.get("sector", "")
-        if sector:
-            return sector
-        # Check quoteType for ETFs
-        quote_type = info.get("quoteType", "")
-        if quote_type == "ETF":
+        qt = getattr(yt, "fast_info", {}).get("quoteType", "") if hasattr(yt, "fast_info") else ""
+        if qt == "ETF":
             return "ETF"
     except Exception:
         pass
 
-    # Fallback: use ticker pattern
+    # Approach 2: Try full .info (has sector for stocks)
+    try:
+        info = yt.info
+        if isinstance(info, dict):
+            sector = info.get("sector", "")
+            if sector:
+                return sector
+            qt2 = info.get("quoteType", "")
+            if qt2 == "ETF":
+                return "ETF"
+    except Exception:
+        pass
+
+    # Approach 3: Fallback by ticker pattern
     if is_likely_etf:
         return "ETF"
     return "Unknown"
