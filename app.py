@@ -53,10 +53,24 @@ def pobierz_benchmark_growth(ticker: str, start_date, end_date) -> pd.Series:
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def pobierz_sektor(ticker: str) -> str:
-    """Fetch sector for a ticker from yfinance."""
+    """Fetch sector for a ticker from yfinance.
+    Resolves XTB tickers first and detects ETFs via quoteType."""
     try:
-        info = yf.Ticker(ticker).info
-        return info.get("sector", "Unknown")
+        resolved = resolve_xtb_ticker(ticker)
+        info = yf.Ticker(resolved).info
+        # Check if it has a sector (stocks have it, ETFs don't)
+        sector = info.get("sector", "")
+        if sector:
+            return sector
+        # ETFs don't have a sector — check quoteType
+        quote_type = info.get("quoteType", "")
+        if quote_type == "ETF":
+            return "ETF"
+        # Fallback: check if the ticker name suggests ETF
+        upper = ticker.upper()
+        if any(upper.endswith(s) for s in [".UK", ".DE"]) or upper in ("SP500ETF", "NASDAQETF", "DOWJONESETF"):
+            return "ETF"
+        return "Unknown"
     except Exception:
         return "Unknown"
 
