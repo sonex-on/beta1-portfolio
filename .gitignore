@@ -25,6 +25,8 @@ build/
 *.exe
 launcher.py
 portfel_dane.csv.enc
+installer/*.zip
+installer/get-pip.py
 
 # Logo cache
 assets/logos/
